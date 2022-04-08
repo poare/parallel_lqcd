@@ -2,8 +2,7 @@
 Julia code for parallelizing lattice QCD code. Some papers to check out that I think will be helpful (all in the Dropbox):
 - High-Performance Parallelism Pearls Chapter 9
 
-- High-Performance Lattice QCD for Multi-core Based Parallel Systems Using a Cache-Friendly Hybrid Threaded-MPI Approach
-- https://ieeexplore.ieee.org/stamp/stamp.jsp?tp=&arnumber=6114421
+- [High-Performance Lattice QCD for Multi-core Based Parallel Systems Using a Cache-Friendly Hybrid Threaded-MPI Approach](https://ieeexplore.ieee.org/stamp/stamp.jsp?tp=&arnumber=6114421)
 
 ### What is implemented so far?
 - src/actions/actions.jl: General framework for implementing actions.
