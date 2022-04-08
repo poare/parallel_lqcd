@@ -3,7 +3,7 @@ Julia code for parallelizing lattice QCD code. Some papers to check out that I t
 - High-Performance Parallelism Pearls Chapter 9
 - High-Performance Lattice QCD for Multi-core Based Parallel Systems Using a Cache-Friendly Hybrid Threaded-MPI Approach
 
-###What is implemented so far?
+### What is implemented so far?
 - src/actions/actions.jl: General framework for implementing actions.
   - We can use the Actions.FermiActionParam_Wilson
 - src/fermions/AbstractFermion.jl
@@ -18,19 +18,19 @@ Julia code for parallelizing lattice QCD code. Some papers to check out that I t
 - src/gaugefields/gaugefields.jl
   - TODO check this out
 
-###What do we need to implement?
+### What do we need to implement?
 - Extra data structures, like:
   - ```ParWilsonFermion <: WilsonFermion```: Our WilsonFermion module to use for this project, this is where we can add extra functionality that we want
   - ```HalfSpinor```: upper two components of a spinor field. Can also have this be absorbed into ```ParWilsonFermion```.
   - ```ParWilsonAction```: Multithreaded Wilson action.
-  - ```MPIWilsonAction```: Distributed Wilson action using MPI. Will likely need separate run scripts as well. 
+  - ```MPIWilsonAction```: Distributed Wilson action using MPI. Will likely need separate run scripts as well.
 - Blocking (?)
 
-###Steps:
+### Steps:
 1. Implement the Wilson-clover action in serial using LatticeQCD.jl datastructures.
 2. Multithread the Wilson-clover action
 
-###Random comments and notes
+### Random comments and notes
 - To load a module, it's not as simple as just writing ```using LatticeQCD```. Let's say we want to use some functionality from the Actions module. We can either import it by selecting the functions we want to use, and using them, like so:
   ```
   using LatticeQCD.Actions:FermiActionParam_Wilson

@@ -1,6 +1,5 @@
-#=
-WilsonFermion which has extra implementations to speed up computations with WilsonFermion.jl.
-=#
+
+
 module ParWilsonFermion
 
     using ReusePatterns
@@ -15,27 +14,26 @@ module ParWilsonFermion
         wilson::WilsonFermion
         # extra fields that we need here
     end
-    @forward (ParWilsonFermion, :wilson) WilsonFermion          # inherit all fields from WilsonFermion?
 
-    """
-    Projects a spinor x in the μ direction.
+    struct ParWilsonTwoSpinor <: FermionFields
+        NC::Int64
+        NX::Int64
+        NY::Int64
+        NZ::Int64
+        NT::Int64
+        f::Array{ComplexF64,6}
 
-    Parameters
-    ----------
-    x::ParWilsonFermion
-        Wilson fermion field to project.
-    μ::Integer
-        Direction, should be in {1, 2, 3, 4} or {-1, -2, -3, -4}
-
-    Returns
-    -------
-    ParWilsonTwoSpinor
-        Projected spinor (two spinor components instead of 4.)
-    """
-    function proj(x::ParWilsonFermion, μ::Integer)
-        y = ParWilsonTwoSpinor(...)
-        # TODO method stub
-        return y
+        γ::Array{ComplexF64,3}
+        rplusγ::Array{ComplexF64,3}
+        rminusγ::Array{ComplexF64,3}
+        hop::Float64 #Hopping parameter
+        r::Float64 #Wilson term
+        hopp::Array{ComplexF64,1}
+        hopm::Array{ComplexF64,1}
+        eps::Float64
+        Dirac_operator::String
+        MaxCGstep::Int64
+        BoundaryCondition::Array{Int8,1}
     end
 
     """
