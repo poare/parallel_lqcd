@@ -10,7 +10,7 @@ module ParWilsonFermion
 
     struct ParWilsonTwoSpinor
         # extra fields that we need here
-        
+
     end
 
     """
@@ -28,31 +28,29 @@ module ParWilsonFermion
     ParWilsonTwoSpinor
         Projected spinor (two spinor components instead of 4.)
     """
-    function proj(x::ParWilsonFermion, μ::Integer)
+    function proj_twospinor(x::ParWilsonFermion, μ::Integer)
         y = ParWilsonTwoSpinor(...)
         # TODO method stub
         return y
     end
 
     """
-    Reconstructs a projected spinor y to a full spinor x in the μ direction.
+    Projects a spinor x in the μ direction with the projector (1 ± γ^μ).
 
     Parameters
     ----------
-    y::ParWilsonTwoSpinor
-        TwoSpinor fermion field to reconstruct.
+    x::ParWilsonFermion
+        Wilson fermion field to project.
     μ::Integer
         Direction, should be in {1, 2, 3, 4} or {-1, -2, -3, -4}
 
     Returns
     -------
     ParWilsonFermion
-        Reconstructed spinor (two spinor components instead of 4.)
+        Projected Wilson Fermion
     """
-    function recon(y::ParWilsonTwoSpinor, μ::Integer)
-        x = ParWilsonFermion()
-        # TODO method stub
-        return x
+    function proj(x::ParWilsonFermion, μ::Integer)
+
     end
 
 end
