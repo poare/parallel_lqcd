@@ -20,10 +20,6 @@ module ParWilsonFermionModule
     import LatticeQCD.AbstractFermion:FermionFields,
         Wx!,Wdagx!,clear!,substitute_fermion!,Dx!,fermion_shift!,fermion_shiftB!,add!,set_wing_fermi!,WdagWx!,apply_periodicity,Ddagx!
 
-    # struct ParWilsonFermion <: FermionFields
-    #     serial::WilsonFermion
-    # end
-
     # struct ParWilsonFermion
     #     wilson::WilsonFermion
     #     # extra fields that we need here
@@ -48,6 +44,7 @@ module ParWilsonFermionModule
         NY::Int64
         NZ::Int64
         NT::Int64
+        ND::Int64                                       # 2 or 4
         f::Array{ComplexF64,6}
 
         γ::Array{ComplexF64,3}
@@ -63,30 +60,6 @@ module ParWilsonFermionModule
         BoundaryCondition::Array{Int8,1}
     end
 
-    struct ParWilsonTwoSpinor <: FermionFields
-        NC::Int64
-        NX::Int64
-        NY::Int64
-        NZ::Int64
-        NT::Int64
-        f::Array{ComplexF64,6}                          # The size of the last component here will be 2
-
-        # TODO the next three fields are specific γ^μ matrices: we either need to scrap them or change the implementation
-        # Going to comment them out for the time being
-        # γ::Array{ComplexF64,3}
-        # rplusγ::Array{ComplexF64,3}
-        # rminusγ::Array{ComplexF64,3}
-
-        hop::Float64                                    #Hopping parameter
-        r::Float64                                      #Wilson term
-        hopp::Array{ComplexF64,1}
-        hopm::Array{ComplexF64,1}
-        eps::Float64
-        Dirac_operator::String
-        MaxCGstep::Int64
-        BoundaryCondition::Array{Int8,1}
-    end
-
     ############################################################################
     ############################# Basic utilities ##############################
     ############################################################################
@@ -95,28 +68,14 @@ module ParWilsonFermionModule
     Total length of a ParWilsonFermion = Nc * vol * Nd.
     """
     function Base.length(x::ParWilsonFermion)
-        return x.NC*x.NX*x.NY*x.NZ*x.NT*4
-    end
-
-    """
-    Total length of a ParWilsonTwoSpinor.
-    """
-    function Base.length(x::ParWilsonTwoSpinor)
-        return x.NC*x.NX*x.NY*x.NZ*x.NT*2
+        return x.NC*x.NX*x.NY*x.NZ*x.NT*x.ND
     end
 
     """
     Size of a ParWilsonFermion = (Nc, Nx, Ny, Nz, Nt, Nd).
     """
-    function Base.size(x::WilsonFermion)
-        return (x.NC, x.NX, x.NY, x.NZ, x.NT, 4)
-    end
-
-    """
-    Size of a ParWilsonTwoSpinor = (Nc, Nx, Ny, Nz, Nt, Nd / 2).
-    """
-    function Base.size(x::ParWilsonTwoSpinor)
-        return (x.NC, x.NX, x.NY, x.NZ, x.NT, 2)
+    function Base.size(x::ParWilsonFermion)
+        return (x.NC, x.NX, x.NY, x.NZ, x.NT, x.ND)
     end
 
     """
@@ -128,46 +87,27 @@ module ParWilsonFermionModule
     end
 
     """
-    Iterator over ParWilsonTwoSpinor.
-    """
-    function Base.iterate(x::ParWilsonTwoSpinor, i::Int = 1)
-        i == length(x.f)+1 && return nothing
-        return (x.f[i], i + 1)
-    end
-
-    """
     Constructor for ParWilsonFermion.
     """
     function ParWilsonFermion(w::WilsonFermion)
-        return ParWilsonFermion(w.NC, w.NX, w.NY, w.NZ, w.NT, w.r, w.hop, w.eps, w.MaxCGstep, w.BoundaryCondition)
+        return ParWilsonFermion(w.NC, w.NX, w.NY, w.NZ, w.NT, 4, w.r, w.hop, w.eps, w.MaxCGstep, w.BoundaryCondition)
     end
 
     """
     Constructor for ParWilsonFermion.
     """
-    function ParWilsonFermion(NC, NX, NY, NZ, NT, fparam::FermiActionParam, BoundaryCondition)
+    function ParWilsonFermion(NC, NX, NY, NZ, NT, ND, fparam::FermiActionParam, BoundaryCondition)
         r = fparam.r
         hop = fparam.hop
         eps = fparam.eps
         MaxCGstep = fparam.MaxCGstep
-        return ParWilsonFermion(NC, NX, NY, NZ, NT, r, hop, eps, MaxCGstep, BoundaryCondition)
-    end
-
-    """
-    Constructor for ParWilsonTwoSpinor.
-    """
-    function ParWilsonTwoSpinor(NC, NX, NY, NZ, NT, fparam::FermiActionParam, BoundaryCondition)
-        r = fparam.r
-        hop = fparam.hop
-        eps = fparam.eps
-        MaxCGstep = fparam.MaxCGstep
-        return ParWilsonTwoSpinor(NC, NX, NY, NZ, NT, r, hop, eps, MaxCGstep, BoundaryCondition)
+        return ParWilsonFermion(NC, NX, NY, NZ, NT, ND, r, hop, eps, MaxCGstep, BoundaryCondition)
     end
 
     """
     Constructor for ParWilsonFermion.
     """
-    function ParWilsonFermion(NC, NX, NY, NZ, NT, r, hop, eps, MaxCGstep, BoundaryCondition)
+    function ParWilsonFermion(NC, NX, NY, NZ, NT, ND, r, hop, eps, MaxCGstep, BoundaryCondition)
         γ,rplusγ,rminusγ = mk_gamma(r)
         hopp = zeros(ComplexF64,4)
         hopm = zeros(ComplexF64,4)
@@ -175,41 +115,16 @@ module ParWilsonFermionModule
         hopm .= hop
         Dirac_operator = "Wilson"
         # TODO why two extra components here?
-        return ParWilsonFermion(NC,NX,NY,NZ,NT,zeros(ComplexF64,NC,NX+2,NY+2,NZ+2,NT+2,4),
-            γ,rplusγ,rminusγ,hop,r,hopp,hopm,eps,Dirac_operator,MaxCGstep,BoundaryCondition)
-    end
-
-    """
-    Constructor for ParWilsonTwoSpinor.
-    """
-    function ParWilsonTwoSpinor(NC, NX, NY, NZ, NT, r, hop, eps, MaxCGstep, BoundaryCondition)
-        # TODO think about this constructor: do we need γ matrices?
-        # γ,rplusγ,rminusγ = mk_gamma(r)
-        hopp = zeros(ComplexF64,4)
-        hopm = zeros(ComplexF64,4)
-        hopp .= hop
-        hopm .= hop
-        Dirac_operator = "Wilson"
-        # return ParWilsonTwoSpinor(NC,NX,NY,NZ,NT,zeros(ComplexF64,NC,NX+2,NY+2,NZ+2,NT+2,4),
-        #     γ,rplusγ,rminusγ,hop,r,hopp,hopm,eps,Dirac_operator,MaxCGstep,BoundaryCondition)
-        return ParWilsonTwoSpinor(NC,NX,NY,NZ,NT,zeros(ComplexF64,NC,NX+2,NY+2,NZ+2,NT+2,2),
-            hop,r,hopp,hopm,eps,Dirac_operator,MaxCGstep,BoundaryCondition)
+        return ParWilsonFermion(NC, NX, NY, NZ, NT, ND, zeros(ComplexF64, NC, NX+2, NY+2, NZ+2, NT+2, ND),
+            γ, rplusγ, rminusγ, hop, r, hopp, hopm, eps, Dirac_operator, MaxCGstep, BoundaryCondition)
     end
 
     """
     Constructor for ParWilsonFermion.
     """
-    function ParWilsonFermion(NC,NX,NY,NZ,NT,γ,rplusγ,rminusγ,hop,r,hopp,hopm,eps,fermion,MaxCGstep,BoundaryCondition)
-        return ParWilsonFermion(NC,NX,NY,NZ,NT,zeros(ComplexF64,NC,NX+2,NY+2,NZ+2,NT+2,4),
-                    γ,rplusγ,rminusγ,hop,r,hopp,hopm,eps,fermion,MaxCGstep,BoundaryCondition)
-    end
-
-    """
-    Constructor for ParWilsonTwoSpinor.
-    """
-    function ParWilsonTwoSpinor(NC,NX,NY,NZ,NT,γ,rplusγ,rminusγ,hop,r,hopp,hopm,eps,fermion,MaxCGstep,BoundaryCondition)
-        return ParWilsonTwoSpinor(NC,NX,NY,NZ,NT,zeros(ComplexF64,NC,NX+2,NY+2,NZ+2,NT+2,2),
-                    hop,r,hopp,hopm,eps,fermion,MaxCGstep,BoundaryCondition)
+    function ParWilsonFermion(NC, NX, NY, NZ, NT, ND, γ, rplusγ, rminusγ, hop, r, hopp, hopm, eps, fermion, MaxCGstep, BoundaryCondition)
+        return ParWilsonFermion(NC, NX, NY, NZ, NT, ND, zeros(ComplexF64,NC,NX+2,NY+2,NZ+2,NT+2,4),
+                    γ, rplusγ, rminusγ, hop, r, hopp, hopm, eps, fermion,MaxCGstep,BoundaryCondition)
     end
 
     """
@@ -217,14 +132,7 @@ module ParWilsonFermionModule
     middle and 1-indexed in the color and Dirac components.
     """
     function Base.setindex!(x::ParWilsonFermion, v, i1, i2, i3, i4, i5, i6)
-        x.f[i1,i2 + 1,i3 + 1,i4 + 1,i5 + 1,i6] = v
-    end
-
-    """
-    Sets the (i1, i2, i3, i4, i5, i6) component of x.f (the fermion field) to v.
-    """
-    function Base.setindex!(x::ParWilsonTwoSpinor, v, i1, i2, i3, i4, i5, i6)
-        x.f[i1,i2 + 1,i3 + 1,i4 + 1,i5 + 1,i6] = v
+        x.f[i1, i2 + 1, i3 + 1, i4 + 1, i5 + 1, i6] = v
     end
 
     """
@@ -246,59 +154,16 @@ module ParWilsonFermionModule
     end
 
     """
-    Sets the ii'th component (ii is a vectorized index) of x.f to v.
-    """
-    function Base.setindex!(x::ParWilsonTwoSpinor, v, ii)
-        ic = (ii - 1) % x.NC + 1
-        iii = (ii - ic) ÷ x.NC
-        ix = iii % x.NX + 1
-        iii = (iii - ix + 1) ÷ x.NX
-        iy = iii % x.NY + 1
-        iii = (iii - iy + 1) ÷ x.NY
-        iz = iii % x.NZ + 1
-        iii = (iii - iz + 1) ÷ x.NZ
-        it = iii % x.NT + 1
-        iii = (iii - it + 1) ÷ x.NT
-        ialpha = iii + 1
-        x[ic, ix, iy, iz, it, ialpha] = v
-    end
-
-    """
     Gets the (i1, i2, i3, i4, i5, i6) component of x.f (the fermion field).
     """
     function Base.getindex(x::ParWilsonFermion, i1, i2, i3, i4, i5, i6)
-        return x.f[i1,i2 .+ 1,i3 .+ 1,i4 .+ 1,i5 .+ 1,i6]
-    end
-
-    """
-    Gets the (i1, i2, i3, i4, i5, i6) component of x.f (the fermion field).
-    """
-    function Base.getindex(x::ParWilsonTwoSpinor, i1, i2, i3, i4, i5, i6)
-        return x.f[i1,i2 .+ 1,i3 .+ 1,i4 .+ 1,i5 .+ 1,i6]
+        return x.f[i1, i2 .+ 1, i3 .+ 1, i4 .+ 1, i5 .+ 1, i6]
     end
 
     """
     Gets the ii'th component (ii is a vectorized index) of x.f.
     """
     function Base.getindex(x::ParWilsonFermion, ii)
-        ic = (ii - 1) % x.NC + 1
-        iii = (ii - ic) ÷ x.NC
-        ix = iii % x.NX + 1
-        iii = (iii - ix + 1) ÷ x.NX
-        iy = iii % x.NY + 1
-        iii = (iii - iy + 1) ÷ x.NY
-        iz = iii % x.NZ + 1
-        iii = (iii - iz + 1) ÷ x.NZ
-        it = iii % x.NT + 1
-        iii = (iii - it + 1) ÷ x.NT
-        ialpha = iii + 1
-        return x[ic, ix, iy, iz, it, ialpha]
-    end
-
-    """
-    Gets the ii'th component (ii is a vectorized index) of x.f.
-    """
-    function Base.getindex(x::ParWilsonTwoSpinor, ii)
         ic = (ii - 1) % x.NC + 1
         iii = (ii - ic) ÷ x.NC
         ix = iii % x.NX + 1
@@ -322,7 +187,6 @@ module ParWilsonFermionModule
     these functions: we can probably just do it at the level of the for-loops (embarassingly
     parallel problem) since a lot of the data here seems independent.
 
-    We should also give some thought as to which ones of these we'll need for ParWilsonTwoSpinor.
     For the previous set of functions, I reimplemented each function for both ParWilsonFermion and
     for ParWilsonAction, but for these it might be more of a pain than it's worth (there are a lot of
     functions in the WilsonFermion.jl file!)
@@ -386,26 +250,6 @@ module ParWilsonFermionModule
     """
     function LinearAlgebra.rmul!(a::ParWilsonFermion,b::T) where T <: Number
         for α=1:4
-            for it=1:a.NT
-                for iz=1:a.NZ
-                    for iy=1:a.NY
-                        for ix=1:a.NX
-                            @simd for ic=1:a.NC
-                                a[ic,ix,iy,iz,it,α] = b*a[ic,ix,iy,iz,it,α]
-                            end
-                        end
-                    end
-                end
-            end
-        end
-        return a
-    end
-
-    """
-    Scalar multiplication of a ParWilsonTwoSpinor.
-    """
-    function LinearAlgebra.rmul!(a::ParWilsonTwoSpinor, b::T) where T <: Number
-        for α=1:2
             for it=1:a.NT
                 for iz=1:a.NZ
                     for iy=1:a.NY
@@ -500,24 +344,6 @@ module ParWilsonFermionModule
         end
     end
 
-    function substitute_fermion!(H, j, x::ParWilsonTwoSpinor)
-        i = 0
-        for ialpha = 1:2
-            for it=1:x.NT
-                for iz=1:x.NZ
-                    for iy=1:x.NY
-                        for ix=1:x.NX
-                            @simd for ic=1:x.NC
-                                i += 1
-                                H[i,j] = x[ic,ix,iy,iz,it,ialpha]
-                            end
-                        end
-                    end
-                end
-            end
-        end
-    end
-
     ############################################################################
     ########################### Shifting operations ############################
     ############################################################################
@@ -526,10 +352,10 @@ module ParWilsonFermionModule
     These are gauge invariant shifting operations. They'll likely be useful to reimplement: notice that the type
     T here is a gauge field, so u::Array{T, 1} is just a gauge field u[μ], where μ ∈ {1, 2, 3, 4}: the multiplication
     by u[μ] serves to make the shifted gauge field invariant. We'll likely need to implement all these functions for
-    ParWilsonFermions and for ParWilsonTwoSpinors
+    ParWilsonFermions.
     =#
 
-    function fermion_shift!(b::WilsonFermion,u::Array{T,1},μ::Int,a::WilsonFermion) where T <: SU3GaugeFields
+    function fermion_shift!(b::ParWilsonFermion,u::Array{T,1},μ::Int,a::ParWilsonFermion) where T <: SU3GaugeFields
         if μ == 0
             substitute!(b,a)
             return
@@ -539,11 +365,12 @@ module ParWilsonFermionModule
         NY = a.NY
         NZ = a.NZ
         NT = a.NT
+        ND = a.ND
         NC = 3
 
         if μ > 0
             n6 = size(a.f)[6]
-            for ialpha=1:4              # when implementing for ParWilsonTwoSpinor, this should be 2
+            for ialpha=1:ND
                 for it=1:NT
                     it1 = it + ifelse(μ ==4,1,0)
                     for iz=1:NZ
@@ -907,7 +734,7 @@ module ParWilsonFermionModule
     best way to implement them in terms of projecting down to two-spinors and then
     reconstructing.
     """
-    function mul_γ5x!(y::ParWilsonFermion,x::ParWilsonFermion)
+    function mul_γ5x!(y::ParWilsonFermion, x::ParWilsonFermion)
         NX = x.NX
         NY = x.NY
         NZ = x.NZ
@@ -935,17 +762,17 @@ module ParWilsonFermionModule
     Parameters
     ----------
     x::ParWilsonFermion
-        Wilson fermion field to project.
+        Wilson fermion field to project with ND = 4.
     μ::Integer
         Direction, should be in {1, 2, 3, 4} or {-1, -2, -3, -4}
 
     Returns
     -------
-    ParWilsonTwoSpinor
-        Projected spinor (two spinor components instead of 4.)
+    ParWilsonFermion
+        Projected spinor (ND = 2)
     """
     function proj(x::ParWilsonFermion, μ::Integer)
-        # y = ParWilsonTwoSpinor(...)
+        # y = ParWilsonFermion(...)
         # TODO method stub
         return y
     end
@@ -955,7 +782,7 @@ module ParWilsonFermionModule
 
     Parameters
     ----------
-    y::ParWilsonTwoSpinor
+    y::ParWilsonFermion (ND = 2)
         TwoSpinor fermion field to reconstruct.
     μ::Integer
         Direction, should be in {1, 2, 3, 4} or {-1, -2, -3, -4}
@@ -965,7 +792,7 @@ module ParWilsonFermionModule
     ParWilsonFermion
         Reconstructed spinor (two spinor components instead of 4.)
     """
-    function recon(y::ParWilsonTwoSpinor, μ::Integer)
+    function recon(y::ParWilsonFermion, μ::Integer)
         # x = ParWilsonFermion()
         # TODO method stub
         return x

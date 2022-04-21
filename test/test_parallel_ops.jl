@@ -24,7 +24,7 @@ mul_factor = 4.3
 # initialize fermions
 ser_ferm = WilsonFermion(Nc, Nx, Ny, Nz, Nt, ferm_param, bc)
 par_ferm = ParWilsonFermion(ser_ferm)                           # can construct either way
-# par_ferm = ParWilsonFermion(Nc, Nx, Ny, Nz, Nt, ferm_param, bc)
+# par_ferm = ParWilsonFermion(Nc, Nx, Ny, Nz, Nt, 4, ferm_param, bc)
 
 # Test __rmul__
 println("Testing __rmul__ overloading.")
