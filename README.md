@@ -27,8 +27,10 @@ Julia code for parallelizing lattice QCD code. Some papers to check out that I t
 - Blocking (?)
 
 ### Steps:
-1. Implement the Wilson-clover action in serial using LatticeQCD.jl datastructures.
-2. Multithread the Wilson-clover action
+1. Implement the Wilson action in serial using LatticeQCD.jl datastructures.
+2. Implement the HalfSpinor class to speed up the $\gamma$ matrix projections in the Wilson action.
+3. Multithread (or use MPI) the Wilson action using blocking techniques to separate the lattice into sublattices.
+4. Implement a conjugate gradient (CG) inverter. I'm not sure at the moment if this is something that we need to parallelize directly, or if we'd rather just call the parallelized Wilson kernel (i.e. the parallel ```Dx!``` code that we'll be writing)
 
 ### Random comments and notes
 - To load a module, it's not as simple as just writing ```using LatticeQCD```. Let's say we want to use some functionality from the Actions module. We can either import it by selecting the functions we want to use, and using them, like so:
