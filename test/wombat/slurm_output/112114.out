@@ -1,0 +1,81 @@
+WARNING: Symbolic version 'openmpi/default' already defined
+WARNING: Symbolic version 'qlua/default' already defined
+WARNING: Symbolic version 'cuda/default' already defined
+WARNING: Symbolic version 'llvm/default' already defined
+WARNING: Symbolic version 'gcc/default' already defined
++ bash
+WARNING: Symbolic version 'openmpi/default' already defined
+WARNING: Symbolic version 'qlua/default' already defined
+WARNING: Symbolic version 'cuda/default' already defined
+WARNING: Symbolic version 'llvm/default' already defined
+WARNING: Symbolic version 'gcc/default' already defined
++ module load openmpi/3.1.5
++ unset _mlshdbg
++ '[' 0 = 1 ']'
++ unset _mlre _mlIFS
++ '[' -n x ']'
++ _mlIFS=' 	
+'
++ IFS=' '
++ '[' -n '' ']'
+++ /usr/bin/tclsh /opt/software/modules-4.4.0/libexec/modulecmd.tcl bash load openmpi/3.1.5
+WARNING: Symbolic version 'openmpi/default' already defined
+WARNING: Symbolic version 'qlua/default' already defined
+WARNING: Symbolic version 'cuda/default' already defined
+WARNING: Symbolic version 'llvm/default' already defined
+WARNING: Symbolic version 'gcc/default' already defined
++ eval 'MANPATH=/opt/software/openmpi-3.1.5/share/man:::/opt/software/slurm-19.05.4.1/share/man;' export 'MANPATH;
+LOADEDMODULES=slurm/19.05.4.1:openmpi/3.1.5;' export 'LOADEDMODULES;
+_LMFILES_=/opt/software/modules-4.4.0/modulefiles/slurm/19.05.4.1:/opt/software/modules-4.4.0/modulefiles/openmpi/3.1.5;' export '_LMFILES_;
+MANPATH_modshare=:1:/opt/software/openmpi-3.1.5/share/man:1:/opt/software/slurm-19.05.4.1/share/man:1;' export 'MANPATH_modshare;
+MODULES_LMCONFLICT=slurm/19.05.4.1\&slurm:openmpi/3.1.5\&openmpi;' export 'MODULES_LMCONFLICT;
+MODULES_LMALTNAME=openmpi/3.1.5\&openmpi/default\&openmpi;' export 'MODULES_LMALTNAME;
+MODULES_LMALTNAME_modshare=openmpi/3.1.5\&openmpi/default\&openmpi:1;' export 'MODULES_LMALTNAME_modshare;
+MODULES_LMCONFLICT_modshare=slurm/19.05.4.1\&slurm:1:openmpi/3.1.5\&openmpi:1;' export 'MODULES_LMCONFLICT_modshare;
+OPENMPI_TOP=/opt/software/openmpi-3.1.5;' export 'OPENMPI_TOP;
+LOADEDMODULES_modshare=openmpi/3.1.5:1:slurm/19.05.4.1:1;' export 'LOADEDMODULES_modshare;
+_LMFILES__modshare=/opt/software/modules-4.4.0/modulefiles/openmpi/3.1.5:1:/opt/software/modules-4.4.0/modulefiles/slurm/19.05.4.1:1;' export '_LMFILES__modshare;
+PATH=/opt/software/openmpi-3.1.5/bin:/opt/software/modules-4.4.0/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/opt/software/slurm-19.05.4.1/bin;' export 'PATH;
+PATH_modshare=/usr/sbin:1:/bin:1:/opt/software/openmpi-3.1.5/bin:1:/opt/software/modules-4.4.0/bin:1:/usr/bin:1:/opt/software/slurm-19.05.4.1/bin:1:/usr/local/sbin:1:/usr/local/bin:1:/sbin:1;' export 'PATH_modshare;
+test' '0;'
+++ MANPATH=/opt/software/openmpi-3.1.5/share/man:::/opt/software/slurm-19.05.4.1/share/man
+++ export MANPATH
+++ LOADEDMODULES=slurm/19.05.4.1:openmpi/3.1.5
+++ export LOADEDMODULES
+++ _LMFILES_=/opt/software/modules-4.4.0/modulefiles/slurm/19.05.4.1:/opt/software/modules-4.4.0/modulefiles/openmpi/3.1.5
+++ export _LMFILES_
+++ MANPATH_modshare=:1:/opt/software/openmpi-3.1.5/share/man:1:/opt/software/slurm-19.05.4.1/share/man:1
+++ export MANPATH_modshare
+++ MODULES_LMCONFLICT='slurm/19.05.4.1&slurm:openmpi/3.1.5&openmpi'
+++ export MODULES_LMCONFLICT
+++ MODULES_LMALTNAME='openmpi/3.1.5&openmpi/default&openmpi'
+++ export MODULES_LMALTNAME
+++ MODULES_LMALTNAME_modshare='openmpi/3.1.5&openmpi/default&openmpi:1'
+++ export MODULES_LMALTNAME_modshare
+++ MODULES_LMCONFLICT_modshare='slurm/19.05.4.1&slurm:1:openmpi/3.1.5&openmpi:1'
+++ export MODULES_LMCONFLICT_modshare
+++ OPENMPI_TOP=/opt/software/openmpi-3.1.5
+++ export OPENMPI_TOP
+++ LOADEDMODULES_modshare=openmpi/3.1.5:1:slurm/19.05.4.1:1
+++ export LOADEDMODULES_modshare
+++ _LMFILES__modshare=/opt/software/modules-4.4.0/modulefiles/openmpi/3.1.5:1:/opt/software/modules-4.4.0/modulefiles/slurm/19.05.4.1:1
+++ export _LMFILES__modshare
+++ PATH=/opt/software/openmpi-3.1.5/bin:/opt/software/modules-4.4.0/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/opt/software/slurm-19.05.4.1/bin
+++ export PATH
+++ PATH_modshare=/usr/sbin:1:/bin:1:/opt/software/openmpi-3.1.5/bin:1:/opt/software/modules-4.4.0/bin:1:/usr/bin:1:/opt/software/slurm-19.05.4.1/bin:1:/usr/local/sbin:1:/usr/local/bin:1:/sbin:1
+++ export PATH_modshare
+++ test 0
++ _mlstatus=0
++ '[' -n x ']'
++ IFS=' 	
+'
++ unset _mlre _mlv _mlrv _mlIFS
++ '[' -n '' ']'
++ unset _mlshdbg
++ return 0
++ EXE=/home/lqcd/poare/software/julia-1.7.2/bin/julia
++ home=/home/lqcd/poare/parallel_lqcd/test/wombat
++ logs=/home/lqcd/poare/parallel_lqcd/test/wombat/logs/jltest_112114
++ mkdir /home/lqcd/poare/parallel_lqcd/test/wombat/logs/jltest_112114
++ MPI_RUN=/opt/software/openmpi-3.1.5/bin/mpirun
++ /opt/software/openmpi-3.1.5/bin/mpirun -np 4 /home/lqcd/poare/software/julia-1.7.2/bin/julia /home/lqcd/poare/parallel_lqcd/test/wombat/hello_world.jl
