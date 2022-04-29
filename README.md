@@ -49,11 +49,16 @@ Julia code for parallelizing lattice QCD code. Some papers to check out that I t
   ```
   julia --nthreads N
   ```
-- Git push and git pull: to pull just run ```git pull```. To push, you need to first commit, which you can do by specifying a message, for example the message "first commit":
+- Git push and git pull: to pull just run ```git pull```. Pushing is more complicated. To push, you have to add, commit, then push. This is done with:
+  ```
+  git add path/to/file
+  ```
+  You need to add every file you wish to commit by adding either the file path or the directory it's in. To see the files that you've added (called **tracking**, so to see the files that are tracked), you can use ```git status```. After you track your files, you can commit. This is done by specifying a message with the commit, for example the message "first commit":
   ```
   git commit -m "first commit"
   ```
-  Then you should push:
+  Finally, you push:
   ```
   git push
   ```
+  At this point the files you tracked should be added to the github, and everyone else should be able to pull the changes. 
