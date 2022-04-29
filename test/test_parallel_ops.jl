@@ -5,7 +5,7 @@ using LatticeQCD.WilsonFermion_module:WilsonFermion,LinearAlgebra.rmul!,Wx!
 # using ..src/fermions/ParWilsonFermion            # TODO figure this out
 # using ParWilsonFermion
 include("../src/fermions/ParWilsonFermion.jl")
-using ..ParWilsonFermionModule: ParWilsonFermion
+using ..ParWilsonFermionModule: ParWilsonFermion,rmul2!
 # using .ParWilsonFermionModule
 print("Loaded ParWilsonFermionModule")
 
@@ -20,6 +20,8 @@ bc = ones(Int8, 1)
 mul_factor = 4.3
 
 # enable multithreading: TODO
+using Base.Threads
+println(Threads.nthreads())
 
 # initialize fermions
 ser_ferm = WilsonFermion(Nc, Nx, Ny, Nz, Nt, ferm_param, bc)
@@ -30,5 +32,6 @@ par_ferm = ParWilsonFermion(ser_ferm)                           # can construct 
 println("Testing __rmul__ overloading.")
 @btime rmul!(ser_ferm, mul_factor)
 @btime rmul!(par_ferm, mul_factor)
+@btime rmul2!(par_ferm, mul_factor)
 
 # Test __operation___ TODO

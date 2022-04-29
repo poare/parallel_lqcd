@@ -4,6 +4,7 @@ WilsonFermion which has extra implementations to speed up computations with Wils
 module ParWilsonFermionModule
 
     using LinearAlgebra
+    using Base.Threads
 
     # have no idea why using doesn't work but everything breaks
     # using LatticeQCD.Actions:FermiActionParam,FermiActionParam_Wilson
@@ -227,7 +228,7 @@ module ParWilsonFermionModule
         end
         return c
     end
-    
+
     function Base.fill!(a::ParWilsonFermion, x::T) where T <: Number
         for α=1:4
             for it=1:a.NT
@@ -243,11 +244,11 @@ module ParWilsonFermionModule
             end
         end
     end
-    
+
     function Base.:-(a::ParWilsonFermion, b::ParWilsonFermion)
         return a+(-1)*b
     end
-    
+
     function Base.:*(a::T,b::ParWilsonFermion) where T <: Number
         c = similar(b)
         for α=1:4
@@ -287,8 +288,28 @@ module ParWilsonFermionModule
     Scalar multiplication of a ParWilsonFermion.
     """
     function LinearAlgebra.rmul!(a::ParWilsonFermion,b::T) where T <: Number
-        for α=1:4
+        @threads for α=1:a.ND
             for it=1:a.NT
+                for iz=1:a.NZ
+                    for iy=1:a.NY
+                        for ix=1:a.NX
+                            @simd for ic=1:a.NC
+                                a[ic,ix,iy,iz,it,α] = b*a[ic,ix,iy,iz,it,α]
+                            end
+                        end
+                    end
+                end
+            end
+        end
+        return a
+    end
+
+    """
+    Dummy rmul2! operator to use for testing the multithreading
+    """
+    function rmul2!(a::ParWilsonFermion,b::T) where T <: Number
+        for α=1:a.ND
+            @threads for it=1:a.NT
                 for iz=1:a.NZ
                     for iy=1:a.NY
                         for ix=1:a.NX
