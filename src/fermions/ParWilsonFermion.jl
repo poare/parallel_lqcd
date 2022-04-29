@@ -192,7 +192,7 @@ module ParWilsonFermionModule
     functions in the WilsonFermion.jl file!)
     =#
 
-    function Base.:*(a::WilsonFermion, b::WilsonFermion)
+    function Base.:*(a::ParWilsonFermion, b::ParWilsonFermion)
         c = 0.0im
         for α=1:4
             for it=1:a.NT
@@ -210,7 +210,45 @@ module ParWilsonFermionModule
         return c
     end
 
-    function Base.:*(a::T,b::WilsonFermion) where T <: Number
+    function Base.:+(a::ParWilsonFermion, b::ParWilsonFermion)
+        c = similar(a)
+        for α=1:4
+            for it=1:a.NT
+                for iz=1:a.NZ
+                    for iy=1:a.NY
+                        for ix=1:a.NX
+                            @simd for ic=1:a.NC
+                                c[ic,ix,iy,iz,it,α]=a[ic,ix,iy,iz,it,α]+b[ic,ix,iy,iz,it,α]
+                            end
+                        end
+                    end
+                end
+            end
+        end
+        return c
+    end
+    
+    function Base.fill!(a::ParWilsonFermion, x::T) where T <: Number
+        for α=1:4
+            for it=1:a.NT
+                for iz=1:a.NZ
+                    for iy=1:a.NY
+                        for ix=1:a.NX
+                            @simd for ic=1:a.NC
+                                a[ic,ix,iy,iz,it,α]=x
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+    
+    function Base.:-(a::ParWilsonFermion, b::ParWilsonFermion)
+        return a+(-1)*b
+    end
+    
+    function Base.:*(a::T,b::ParWilsonFermion) where T <: Number
         c = similar(b)
         for α=1:4
             for it=1:b.NT
@@ -228,7 +266,7 @@ module ParWilsonFermionModule
         return c
     end
 
-    function LinearAlgebra.axpy!(a::T,X::WilsonFermion,Y::WilsonFermion) where T <: Number #Y = a*X+Y
+    function LinearAlgebra.axpy!(a::T,X::ParWilsonFermion,Y::ParWilsonFermion) where T <: Number #Y = a*X+Y
         for α=1:4
             for it=1:X.NT
                 for iz=1:X.NZ
@@ -265,12 +303,12 @@ module ParWilsonFermionModule
         return a
     end
 
-    function Base.similar(x::WilsonFermion)
-        return WilsonFermion(x.NC,x.NX,x.NY,x.NZ,x.NT,
-                    x.γ,x.rplusγ,x.rminusγ,x.hop,x.r,x.hopp,x.hopm,x.eps,x.Dirac_operator,x.MaxCGstep,x.BoundaryCondition)
+    function Base.similar(x::ParWilsonFermion)
+        return ParWilsonFermion(x.NC,x.NX,x.NY,x.NZ,x.NT,
+                    4,x.r,x.hop,x.eps,x.MaxCGstep,x.BoundaryCondition)
     end
 
-    function LinearAlgebra.mul!(xout::WilsonFermion,A::AbstractMatrix,x::WilsonFermion)
+    function LinearAlgebra.mul!(xout::ParWilsonFermion,A::AbstractMatrix,x::ParWilsonFermion)
         NX = x.NX
         NY = x.NY
         NZ = x.NZ
@@ -297,7 +335,7 @@ module ParWilsonFermionModule
         end
     end
 
-    function LinearAlgebra.mul!(xout::WilsonFermion,x::WilsonFermion,A::AbstractMatrix)
+    function LinearAlgebra.mul!(xout::ParWilsonFermion,x::ParWilsonFermion,A::AbstractMatrix)
         NX = x.NX
         NY = x.NY
         NZ = x.NZ
@@ -428,7 +466,7 @@ module ParWilsonFermionModule
 
     end
 
-    function fermion_shift_gamma!(b::WilsonFermion,u::Array{T,1},μ::Int,a::WilsonFermion) where T <: SU3GaugeFields
+    function fermion_shift_gamma!(b::ParWilsonFermion,u::Array{T,1},μ::Int,a::ParWilsonFermion) where T <: SU3GaugeFields
         if μ == 0
             substitute!(b,a)
             return
@@ -503,8 +541,8 @@ module ParWilsonFermionModule
     ############################# Wilson operators #############################
     ############################################################################
 
-    function Wx!(xout::WilsonFermion,U::Array{G,1},
-        x::WilsonFermion,temps::Array{T,1}) where  {T <: FermionFields,G <: GaugeFields}
+    function Wx!(xout::ParWilsonFermion,U::Array{G,1},
+        x::ParWilsonFermion,temps::Array{T,1}) where  {T <: FermionFields,G <: GaugeFields}
         temp = temps[4]
         temp1 = temps[1]
         temp2 = temps[2]
@@ -533,8 +571,8 @@ module ParWilsonFermionModule
         return
     end
 
-    function Wx!(xout::WilsonFermion,U::Array{G,1},
-        x::WilsonFermion,temps::Array{T,1},fparam::FermiActionParam_Wilson) where  {T <: FermionFields,G <: GaugeFields}
+    function Wx!(xout::ParWilsonFermion,U::Array{G,1},
+        x::ParWilsonFermion,temps::Array{T,1},fparam::FermiActionParam_Wilson) where  {T <: FermionFields,G <: GaugeFields}
         Wx!(xout,U,x,temps)
         return
     end
@@ -542,14 +580,14 @@ module ParWilsonFermionModule
 
 
 
-    function Wx!(xout::WilsonFermion,U::Array{G,1},
-        x::WilsonFermion,temps::Array{T,1},fparam::FermiActionParam_WilsonClover) where  {T <: FermionFields,G <: GaugeFields}
+    function Wx!(xout::ParWilsonFermion,U::Array{G,1},
+        x::ParWilsonFermion,temps::Array{T,1},fparam::FermiActionParam_WilsonClover) where  {T <: FermionFields,G <: GaugeFields}
         Wx!(xout,U,x,temps,fparam.CloverFμν)
         return
     end
 
-    function Wx!(xout::WilsonFermion,U::Array{G,1},
-        x::WilsonFermion,temps::Array{T,1},CloverFμν::AbstractArray) where  {T <: FermionFields,G <: GaugeFields}
+    function Wx!(xout::ParWilsonFermion,U::Array{G,1},
+        x::ParWilsonFermion,temps::Array{T,1},CloverFμν::AbstractArray) where  {T <: FermionFields,G <: GaugeFields}
         temp = temps[4]
         temp1 = temps[1]
         temp2 = temps[2]
@@ -583,8 +621,8 @@ module ParWilsonFermionModule
         return
     end
 
-    function Wdagx!(xout::WilsonFermion,U::Array{G,1},
-        x::WilsonFermion,temps::Array{T,1},CloverFμν::AbstractArray) where {T <: FermionFields,G <: GaugeFields}
+    function Wdagx!(xout::ParWilsonFermion,U::Array{G,1},
+        x::ParWilsonFermion,temps::Array{T,1},CloverFμν::AbstractArray) where {T <: FermionFields,G <: GaugeFields}
         temp = temps[4]
         temp1 = temps[1]
         temp2 = temps[2]
@@ -618,16 +656,16 @@ module ParWilsonFermionModule
         return
     end
 
-    function Wdagx!(xout::WilsonFermion,U::Array{G,1},
-        x::WilsonFermion,temps::Array{T,1},fparam::FermiActionParam_WilsonClover) where {T <: FermionFields,G <: GaugeFields}
+    function Wdagx!(xout::ParWilsonFermion,U::Array{G,1},
+        x::ParWilsonFermion,temps::Array{T,1},fparam::FermiActionParam_WilsonClover) where {T <: FermionFields,G <: GaugeFields}
         Wdagx!(xout,U,x,temps,fparam.CloverFμν)
         return
 
     end
 
 
-    function Wdagx!(xout::WilsonFermion,U::Array{G,1},
-        x::WilsonFermion,temps::Array{T,1}) where  {T <: FermionFields,G <: GaugeFields}
+    function Wdagx!(xout::ParWilsonFermion,U::Array{G,1},
+        x::ParWilsonFermion,temps::Array{T,1}) where  {T <: FermionFields,G <: GaugeFields}
         temp = temps[4]
         temp1 = temps[1]
         temp2 = temps[2]
@@ -659,14 +697,14 @@ module ParWilsonFermionModule
         return
     end
 
-    function Wdagx!(xout::WilsonFermion,U::Array{G,1},
-        x::WilsonFermion,temps::Array{T,1},fparam::FermiActionParam_Wilson) where {T <: FermionFields,G <: GaugeFields}
+    function Wdagx!(xout::ParWilsonFermion,U::Array{G,1},
+        x::ParWilsonFermion,temps::Array{T,1},fparam::FermiActionParam_Wilson) where {T <: FermionFields,G <: GaugeFields}
         Wdagx!(xout,U,x,temps)
         return
     end
 
-    function Dx!(xout::WilsonFermion,U::Array{G,1},
-        x::WilsonFermion,temps::Array{T,1}) where  {T <: FermionFields,G <: GaugeFields}
+    function Dx!(xout::ParWilsonFermion,U::Array{G,1},
+        x::ParWilsonFermion,temps::Array{T,1}) where  {T <: FermionFields,G <: GaugeFields}
         temp = temps[4]
         temp1 = temps[1]
         temp2 = temps[2]
@@ -695,8 +733,8 @@ module ParWilsonFermionModule
         return
     end
 
-    function Ddagx!(xout::WilsonFermion,U::Array{G,1},
-        x::WilsonFermion,temps::Array{T,1}) where  {T <: FermionFields,G <: GaugeFields}
+    function Ddagx!(xout::ParWilsonFermion,U::Array{G,1},
+        x::ParWilsonFermion,temps::Array{T,1}) where  {T <: FermionFields,G <: GaugeFields}
         temp = temps[4]
         temp1 = temps[1]
         temp2 = temps[2]
