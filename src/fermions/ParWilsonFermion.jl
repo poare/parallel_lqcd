@@ -305,11 +305,12 @@ module ParWilsonFermionModule
     end
 
     """
-    Dummy rmul2! operator to use for testing the multithreading
+    Dummy rmul2! operator to use for testing the multithreading. TODO change the way ParWilsonFermions store their
+    data and see what happens.
     """
     function rmul2!(a::ParWilsonFermion,b::T) where T <: Number
-        for α=1:a.ND
-            @threads for it=1:a.NT
+        @threads for it=1:a.NT
+            for α=1:a.ND
                 for iz=1:a.NZ
                     for iy=1:a.NY
                         for ix=1:a.NX
