@@ -49,34 +49,16 @@ Julia code for parallelizing lattice QCD code. Some papers to check out that I t
   ```
   julia --nthreads N
   ```
-- Git push and git pull: to pull just run ```git pull```. To push, you need to first commit, which you can do by specifying a message, for example the message "first commit":
+- Git push and git pull: to pull just run ```git pull```. Pushing is more complicated. To push, you have to add, commit, then push. This is done with:
+  ```
+  git add path/to/file
+  ```
+  You need to add every file you wish to commit by adding either the file path or the directory it's in. To see the files that you've added (called **tracking**, so to see the files that are tracked), you can use ```git status```. After you track your files, you can commit. This is done by specifying a message with the commit, for example the message "first commit":
   ```
   git commit -m "first commit"
   ```
-  Then you should push:
+  Finally, you push:
   ```
   git push
   ```
-
-### Running on wombat:
-- Julia MPI scripts now run: Julia is built, and MPI.jl is built with the correct version of openmpi that is native to the cluster.
-  The default submit script to copy is ```parallel```
-- If that doesn't pan out, we can salloc, i.e. use
-  ```
-  salloc --time=00:30:00 --ntasks=4
-  ```
-  We can also request multiple nodes if we want, I believe the switch is -n.
-  Once you salloc, you can run a script with the usual mpirun (make sure that
-  openmpi is loaded, might need to do a ```module load openmpi```:
-  ```
-  poare@p55n3:~/parallel_lqcd/test/wombat$ mpirun -np 4 julia hello_world.jl
-  ```
-
-### Gauge field configurations
-- LatticeQCD.jl has some gauge field configuration readers built in, in the ```/src/output/io.jl``` and ```/src/output/ildg_format.jl```. We'll
-  be using the LIME data format, which you can check out in the ```ildg_format.jl``` file.
-- There aren't a lot of possible gauge field configurations on the cluster which are pure Wilson action (most of the gauge fields are generated with more complicated actions). However, there's an ensemble of $16^3\times 48$ dimensional lattices with the Wilson action, which will be good ones to test our algorithms on (there are also larger Wilson action ensembles in the same parent directory). They're stored at
-  ```
-  /data/d10b/ensembles/quenched/su3_16_32_b5p87793/su3_16_32_b5p87793-stream1/cfgs/.
-  ```
-  I pulled a single gauge field configuration and put it in the directory ```parallel_lqcd/configs/su3_16_32_b5p87793/su3_16_32_b5p87793-stream1.lime99```. It's pretty large, but it'll be a good thing to have to make sure we can read data in. 
+  At this point the files you tracked should be added to the github, and everyone else should be able to pull the changes. 

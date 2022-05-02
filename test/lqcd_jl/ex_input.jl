@@ -1,3 +1,9 @@
+
+using ..Gaugefields
+import ..Gaugefields:GaugeFields,SU2GaugeFields,SU3GaugeFields,SUNGaugeFields
+
+import LatticeQCD.GaugeFields
+
 using LatticeQCD.Actions:Actions
 using LatticeQCD.WilsonFermion_module:WilsonFermion,Wx!
 # using LatticeQCD.Actions:FermiActionParam,FermiActionParam_Wilson,show_parameters_action
