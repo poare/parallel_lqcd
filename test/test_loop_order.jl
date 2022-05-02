@@ -23,7 +23,7 @@ ferm_param = Actions.FermiActionParam_Wilson(κ, 1, 1e-16, 3000)
 Nc = 3
 # Nx = 8; Ny = 8; Nz = 8; Nt = 8
 Nx = 16; Ny = 16; Nz = 16; Nt = 48
-bc = ones(Int8, 1)
+bc = ones(Int8, 4)
 mul_factor = 4.3
 
 # initialize fermions

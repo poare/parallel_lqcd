@@ -16,7 +16,7 @@ Actions.show_parameters_action(ferm_param)
 
 Nc = 3
 Nx = 8; Ny = 8; Nz = 8; Nt = 8
-bc = ones(Int8, 1)
+bc = ones(Int8, 4)
 ferm = WilsonFermion(Nc, Nx, Ny, Nz, Nt, ferm_param, bc)
 println(size(ferm))                             # Julia's size function is overloaded to give the dimensions
 ferm[1, 0, 0, 0, 0, 1] = rand()                 # Spacetime coordinates are 0-indexed, color / spinor indices are 1 indexed

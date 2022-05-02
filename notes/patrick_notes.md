@@ -25,9 +25,10 @@
 
 ### Benchmarking __rmul!__
 - The way we multithread these operators from LatticeQCD.jl is interesting to look at. The natural way to multithread is over the Dirac spinor index $\alpha$, since that's the first component of the array. However, we may want to think about changing that. For multithreading up $N_d$ (the maximum value of $\alpha$), this works fine, but $N_d$ will be 2 (for two-spinors) or 4 (for full Dirac spinors), so either when we hit 2 or 4 threads we'll achieve maximum speedup, regardless of if the number of threads is 4, 6, or 8.
-
-  Instead, the best way to multithread may be looping over $t$, or the first position component after $\alpha$, since the temporal size of the lattice will almost always be $\geq 8$.
-  - Make a plot of these two situtations after different amounts of multithreading, for $n_\mathrm{threads} \in \{1, 2, 3, ..., 8\}$, to see the maximally efficient way to do this. Also consider swapping the order of indices in the array.
+- Instead, the best way to multithread may be looping over $t$, or the first position component after $\alpha$, since the temporal size of the lattice will almost always be $\geq 8$.
+  - Make a plot of these two situtations after different amounts of multithreading, for $n_\mathrm{threads} \in \{1, 2, 3, ..., 8\}$, to see the maximally efficient way to do this.
+- Consider swapping the order of indices in the array: see if it's worth changing the way that (w::ParWilsonFermion).f is structured to take advantage of the `@simd` operation using the fact that Julia is column major
+  - Note that if we do this, we likely would only need to change the backend, i.e. change how __get_index__ is implemented and we shouldn't need to change much other than that
 
 ### Parallelizing the Wilson-Dirac operator
 - The idea here is to partition the lattice into different "blocks" to run on different cores. Each core will evaluate Dx! on each block, then we'll gather the results to get the application of Dx! on a fermion field. Typically, the blocks are partitioned in the X and T directions, and take up the entire Y and Z domains.

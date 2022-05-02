@@ -91,7 +91,9 @@ module ParWilsonFermionModule
     Constructor for ParWilsonFermion.
     """
     function ParWilsonFermion(w::WilsonFermion)
-        return ParWilsonFermion(w.NC, w.NX, w.NY, w.NZ, w.NT, 4, w.r, w.hop, w.eps, w.MaxCGstep, w.BoundaryCondition)
+        w_cp = deepcopy(w)
+        return ParWilsonFermion(w_cp.NC, w_cp.NX, w_cp.NY, w_cp.NZ, w_cp.NT, 4, w_cp.f, w_cp.γ, w_cp.rplusγ, w_cp.rminusγ,
+            w_cp.hop, w_cp.r, w_cp.hopp, w_cp.hopm, w_cp.eps, w_cp.Dirac_operator, w_cp.MaxCGstep, w_cp.BoundaryCondition)
     end
 
     """
@@ -560,17 +562,81 @@ module ParWilsonFermionModule
     end
 
     ############################################################################
+    ######################### FermionFields operations #########################
+    ############################################################################
+
+    """
+    Pads the front and end of each lattice direction with the appropriate boundary condition.
+    """
+    function set_wing_fermi_threads!(a::ParWilsonFermion)
+        NT = a.NT
+        NZ = a.NZ
+        NY = a.NY
+        NX = a.NX
+        NC = a.NC
+        ND = a.ND
+
+        @threads for ialpha = 1:ND
+            for it = 1:NT
+
+                for iz = 1:NZ       #!  X-direction
+                    for iy = 1:NY
+                        for k = 1:NC
+                            a[k,0,iy,iz,it,ialpha] = a.BoundaryCondition[1]*a[k,NX,iy,iz,it,ialpha]
+                            a[k,NX+1,iy,iz,it,ialpha] = a.BoundaryCondition[1]*a[k,1,iy,iz,it,ialpha]
+                        end
+                    end
+                end
+
+                for iz = 1:NZ       #! Y-direction
+                    for ix = 1:NX
+                        for k = 1:NC
+                            a[k,ix,0,iz,it,ialpha] = a.BoundaryCondition[2]*a[k,ix,NY,iz,it,ialpha]
+                            a[k,ix,NY+1,iz,it,ialpha] = a.BoundaryCondition[2]*a[k,ix,1,iz,it,ialpha]
+                        end
+                    end
+                end
+
+                for it = 1:NT       # Z-direction
+                    for iy = 1:NY
+                        for ix = 1:NX
+                            for k = 1:NC
+                                a[k,ix,iy,0,it,ialpha] = a.BoundaryCondition[3]*a[k,ix,iy,NZ,it,ialpha]
+                                a[k,ix,iy,NZ+1,it,ialpha] = a.BoundaryCondition[3]*a[k,ix,iy,1,it,ialpha]
+                            end
+                        end
+                    end
+                end
+
+            end
+
+            for iz = 1:NZ           #T-direction
+                for iy = 1:NY
+                    for ix = 1:NX
+                        for k = 1:NC
+                            a[k,ix,iy,iz,0,ialpha] = a.BoundaryCondition[4]*a[k,ix,iy,iz,NT,ialpha]
+                            a[k,ix,iy,iz,NT+1,ialpha] = a.BoundaryCondition[4]*a[k,ix,iy,iz,1,ialpha]
+                        end
+                    end
+                end
+            end
+
+        end
+
+    end
+
+
+    ############################################################################
     ############################# Wilson operators #############################
     ############################################################################
 
-    function Wx!(xout::ParWilsonFermion,U::Array{G,1},
-        x::ParWilsonFermion,temps::Array{T,1}) where  {T <: FermionFields,G <: GaugeFields}
+    function Dx_serial!(xout::ParWilsonFermion, U::Array{G,1}, x::ParWilsonFermion, temps::Array{T,1}) where  {T <: FermionFields, G <: GaugeFields}
         temp = temps[4]
         temp1 = temps[1]
         temp2 = temps[2]
 
         clear!(temp)
-        set_wing_fermi!(x)
+        set_wing_fermi!(x)              # may want to move this out
         for ν=1:4
             fermion_shift!(temp1,U,ν,x)
 
@@ -581,169 +647,7 @@ module ParWilsonFermionModule
             fermion_shift!(temp2,U,-ν,x)
             mul!(temp2,view(x.rplusγ,:,:,ν),temp2)
 
-            add!(temp,x.hopp[ν],temp1,x.hopm[ν],temp2)
-
-        end
-
-        clear!(xout)
-        add!(xout,1,x,-1,temp)
-
-        #display(xout)
-        #    exit()
-        return
-    end
-
-    function Wx!(xout::ParWilsonFermion,U::Array{G,1},
-        x::ParWilsonFermion,temps::Array{T,1},fparam::FermiActionParam_Wilson) where  {T <: FermionFields,G <: GaugeFields}
-        Wx!(xout,U,x,temps)
-        return
-    end
-
-
-
-
-    function Wx!(xout::ParWilsonFermion,U::Array{G,1},
-        x::ParWilsonFermion,temps::Array{T,1},fparam::FermiActionParam_WilsonClover) where  {T <: FermionFields,G <: GaugeFields}
-        Wx!(xout,U,x,temps,fparam.CloverFμν)
-        return
-    end
-
-    function Wx!(xout::ParWilsonFermion,U::Array{G,1},
-        x::ParWilsonFermion,temps::Array{T,1},CloverFμν::AbstractArray) where  {T <: FermionFields,G <: GaugeFields}
-        temp = temps[4]
-        temp1 = temps[1]
-        temp2 = temps[2]
-
-        clear!(temp)
-        set_wing_fermi!(x)
-        for ν=1:4
-            fermion_shift!(temp1,U,ν,x)
-
-            #... Dirac multiplication
-            mul!(temp1,view(x.rminusγ,:,:,ν),temp1)
-
-            #
-            fermion_shift!(temp2,U,-ν,x)
-            mul!(temp2,view(x.rplusγ,:,:,ν),temp2)
-
-            add!(temp,x.hopp[ν],temp1,x.hopm[ν],temp2)
-
-        end
-
-        clear!(xout)
-        add!(xout,1,x,-1,temp)
-
-        cloverterm!(xout,CloverFμν,x)
-        #println( "xout ",xout*xout)
-
-
-
-        #display(xout)
-        #    exit()
-        return
-    end
-
-    function Wdagx!(xout::ParWilsonFermion,U::Array{G,1},
-        x::ParWilsonFermion,temps::Array{T,1},CloverFμν::AbstractArray) where {T <: FermionFields,G <: GaugeFields}
-        temp = temps[4]
-        temp1 = temps[1]
-        temp2 = temps[2]
-
-        clear!(temp)
-        x5 = temps[3]
-
-        mul_γ5x!(x5,x)
-        set_wing_fermi!(x5)
-
-
-        for ν=1:4
-            fermion_shift!(temp1,U,ν,x5)
-
-            #... Dirac multiplication
-            mul!(temp1,view(x.rminusγ,:,:,ν),temp1)
-
-            #
-            fermion_shift!(temp2,U,-ν,x5)
-
-            mul!(temp2,view(x.rplusγ,:,:,ν),temp2)
-
-            add!(temp,x.hopp[ν],temp1,x.hopm[ν],temp2)
-        end
-        clear!(temp1)
-        add!(temp1,1,x5,-1,temp)
-
-        cloverterm!(temp1,CloverFμν,x5)
-
-        mul_γ5x!(xout,temp1)
-        return
-    end
-
-    function Wdagx!(xout::ParWilsonFermion,U::Array{G,1},
-        x::ParWilsonFermion,temps::Array{T,1},fparam::FermiActionParam_WilsonClover) where {T <: FermionFields,G <: GaugeFields}
-        Wdagx!(xout,U,x,temps,fparam.CloverFμν)
-        return
-
-    end
-
-
-    function Wdagx!(xout::ParWilsonFermion,U::Array{G,1},
-        x::ParWilsonFermion,temps::Array{T,1}) where  {T <: FermionFields,G <: GaugeFields}
-        temp = temps[4]
-        temp1 = temps[1]
-        temp2 = temps[2]
-
-        clear!(temp)
-        set_wing_fermi!(x)
-        for ν=1:4
-            fermion_shift!(temp1,U,ν,x)
-
-            #... Dirac multiplication
-            #mul!(temp1,view(x.rminusγ,:,:,ν),temp1)
-            mul!(temp1,view(x.rplusγ,:,:,ν),temp1)
-
-            #
-            fermion_shift!(temp2,U,-ν,x)
-            #mul!(temp2,view(x.rplusγ,:,:,ν),temp2)
-            mul!(temp2,view(x.rminusγ,:,:,ν),temp2)
-
-            add!(temp,x.hopp[ν],temp1,x.hopm[ν],temp2)
-
-
-        end
-
-        clear!(xout)
-        add!(xout,1,x,-1,temp)
-
-        #display(xout)
-        #    exit()
-        return
-    end
-
-    function Wdagx!(xout::ParWilsonFermion,U::Array{G,1},
-        x::ParWilsonFermion,temps::Array{T,1},fparam::FermiActionParam_Wilson) where {T <: FermionFields,G <: GaugeFields}
-        Wdagx!(xout,U,x,temps)
-        return
-    end
-
-    function Dx!(xout::ParWilsonFermion,U::Array{G,1},
-        x::ParWilsonFermion,temps::Array{T,1}) where  {T <: FermionFields,G <: GaugeFields}
-        temp = temps[4]
-        temp1 = temps[1]
-        temp2 = temps[2]
-
-        clear!(temp)
-        set_wing_fermi!(x)
-        for ν=1:4
-            fermion_shift!(temp1,U,ν,x)
-
-            #... Dirac multiplication
-            mul!(temp1,view(x.rminusγ,:,:,ν),temp1)
-
-            #
-            fermion_shift!(temp2,U,-ν,x)
-            mul!(temp2,view(x.rplusγ,:,:,ν),temp2)
-
-            add!(temp,0.5,temp1,0.5,temp2)
+            add!(temp,0.5,temp1,0.5,temp2)          # TODO see if we can make add! faster
 
         end
 
@@ -752,6 +656,40 @@ module ParWilsonFermionModule
 
         #display(xout)
         #    exit()
+        return
+    end
+
+    """
+    Evaluates Dx! using the half-spinor projection.
+    """
+    function Dx_halfspinor!(xout::ParWilsonFermion, U::Array{G,1}, x::ParWilsonFermion, temps::Array{T,1}) where  {T <: FermionFields, G <: GaugeFields}
+        temp = temps[4]
+        temp1 = temps[1]
+        temp2 = temps[2]
+
+        clear!(temp)
+        set_wing_fermi!(x)              # may want to move this out
+
+        # TODO function stub
+
+        return
+    end
+
+    """
+    Multithreaded implementation of Dx!. Lexigraphically breaks the lattice into n_threads sublattices and
+    calls Dx_halfspinor! on each one.
+    """
+    function Dx!(xout::ParWilsonFermion, U::Array{G,1}, x::ParWilsonFermion, temps::Array{T,1}) where  {T <: FermionFields, G <: GaugeFields}
+        temp = temps[4]
+        temp1 = temps[1]
+        temp2 = temps[2]
+        n_threads = Threads.nthreads()
+
+        clear!(temp)
+        set_wing_fermi!(x)              # may want to move this out
+
+        # TODO function stub
+
         return
     end
 
@@ -855,6 +793,35 @@ module ParWilsonFermionModule
     function recon(y::ParWilsonFermion, μ::Integer)
         # x = ParWilsonFermion()
         # TODO method stub
+        return x
+    end
+
+    ############################################################################
+    ########################### Misc extra operations ##########################
+    ############################################################################
+
+    """
+    Fills in a FermionFields instance with an array of the same shape.
+    """
+    function fill!(x::FermionFields, mat::Array{ComplexF64,6})
+        try
+            global Nd = x.ND
+        catch
+            global Nd = 4
+        end
+        @threads for it = 1:x.NT
+            for α = 1:Nd
+                for iz = 1:x.NZ
+                    for iy = 1:x.NY
+                        for ic = 1:x.NC
+                            @simd for ix = 1:x.NX
+                                x[ic,ix,iy,iz,it,α] = mat[ic,ix,iy,iz,it,α]
+                            end
+                        end
+                    end
+                end
+            end
+        end
         return x
     end
 

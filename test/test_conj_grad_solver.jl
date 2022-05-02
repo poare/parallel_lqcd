@@ -6,9 +6,9 @@ using LatticeQCD.WilsonFermion_module:WilsonFermion,LinearAlgebra.rmul!,Wx!
 include("../src/fermions/ParWilsonFermion.jl")
 include("../src/solvers/ConjGradientSolver.jl")
 using ..ParWilsonFermionModule: ParWilsonFermion,LinearAlgebra.mul!
-print("Loaded ParWilsonFermionModule") 
+print("Loaded ParWilsonFermionModule")
 using ..ConjGradientSolverModule: solve!,solve_verbose!
-#print("Loaded ConjGradientSolver_module") 
+#print("Loaded ConjGradientSolver_module")
 
 # Set up a gauge action
 mq = -0.2450
@@ -17,7 +17,7 @@ ferm_param = Actions.FermiActionParam_Wilson(κ, 1, 1e-16, 3000)
 Actions.show_parameters_action(ferm_param)
 Nc = 3
 Nx = 2; Ny = 2; Nz = 2; Nt = 2
-bc = ones(Int8, 1)
+bc = ones(Int8, 4)
 mul_factor = 4.3
 
 Nlattice=Nc*Nx*Ny*Nz*Nt
@@ -59,6 +59,3 @@ test_zero=par_ferm - workspace_ferm
 test_error=sqrt(test_zero*test_zero)
 println("Norm of residual difference of Dx-b: ", sqrt(test_zero*test_zero))
 println("Mean error per element of Dx-b: ", test_error^2/Ntotal)
-
-
-

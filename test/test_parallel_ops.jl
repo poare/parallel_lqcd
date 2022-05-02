@@ -16,7 +16,7 @@ ferm_param = Actions.FermiActionParam_Wilson(κ, 1, 1e-16, 3000)
 Actions.show_parameters_action(ferm_param)
 Nc = 3
 Nx = 8; Ny = 8; Nz = 8; Nt = 8
-bc = ones(Int8, 1)
+bc = ones(Int8, 4)
 mul_factor = 4.3
 
 # enable multithreading: TODO
