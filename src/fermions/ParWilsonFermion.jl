@@ -92,13 +92,7 @@ module ParWilsonFermionModule
     Constructor for ParWilsonFermion.
     """
     function ParWilsonFermion(w::WilsonFermion)
-<<<<<<< HEAD
         return ParWilsonFermion(w.NC, w.NX, w.NY, w.NZ, w.NT, w.ND, w.r, w.hop, w.eps, w.MaxCGstep, w.BoundaryCondition)
-=======
-        w_cp = deepcopy(w)
-        return ParWilsonFermion(w_cp.NC, w_cp.NX, w_cp.NY, w_cp.NZ, w_cp.NT, 4, w_cp.f, w_cp.γ, w_cp.rplusγ, w_cp.rminusγ,
-            w_cp.hop, w_cp.r, w_cp.hopp, w_cp.hopm, w_cp.eps, w_cp.Dirac_operator, w_cp.MaxCGstep, w_cp.BoundaryCondition)
->>>>>>> 30ea9a921c5dec1caf8b6599620f1fee17ddf638
     end
 
     """
@@ -275,13 +269,8 @@ module ParWilsonFermionModule
         return c
     end
 
-<<<<<<< HEAD
     function LinearAlgebra.axpy!(a::T,X::WilsonFermion,Y::WilsonFermion) where T <: Number #Y = a*X+Y
         for α=1:X.ND
-=======
-    function LinearAlgebra.axpy!(a::T,X::ParWilsonFermion,Y::ParWilsonFermion) where T <: Number #Y = a*X+Y
-        for α=1:4
->>>>>>> 30ea9a921c5dec1caf8b6599620f1fee17ddf638
             for it=1:X.NT
                 for iz=1:X.NZ
                     for iy=1:X.NY
@@ -487,7 +476,7 @@ module ParWilsonFermionModule
             end
 
         elseif μ < 0
-            for ialpha =1:4
+            for ialpha =1:ND
                 for it=1:NT
                     it1 = it - ifelse(-μ ==4,1,0)
                     for iz=1:NZ
@@ -538,7 +527,7 @@ module ParWilsonFermionModule
 
         if μ > 0
             n6 = size(a.f)[6]
-            for ialpha=1:4
+            for ialpha=1:ND
                 for it=1:NT
                     it1 = it + ifelse(μ ==4,1,0)
                     for iz=1:NZ
@@ -573,7 +562,7 @@ module ParWilsonFermionModule
             end
 
         elseif μ < 0
-            for ialpha =1:4
+            for ialpha =1:ND
                 for it=1:NT
                     it1 = it - ifelse(-μ ==4,1,0) #idel[4]
                     for iz=1:NZ
