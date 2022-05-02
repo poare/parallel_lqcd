@@ -27,4 +27,13 @@
 - The way we multithread these operators from LatticeQCD.jl is interesting to look at. The natural way to multithread is over the Dirac spinor index $\alpha$, since that's the first component of the array. However, we may want to think about changing that. For multithreading up $N_d$ (the maximum value of $\alpha$), this works fine, but $N_d$ will be 2 (for two-spinors) or 4 (for full Dirac spinors), so either when we hit 2 or 4 threads we'll achieve maximum speedup, regardless of if the number of threads is 4, 6, or 8.
 
   Instead, the best way to multithread may be looping over $t$, or the first position component after $\alpha$, since the temporal size of the lattice will almost always be $\geq 8$.
-  - Make a plot of these two situtations after different amounts of multithreading, for $n_\mathrm{threads} \in \{1, 2, 3, ..., 8\}$, to see the maximally efficient way to do this. Also consider swapping the order of indices in the array. 
+  - Make a plot of these two situtations after different amounts of multithreading, for $n_\mathrm{threads} \in \{1, 2, 3, ..., 8\}$, to see the maximally efficient way to do this. Also consider swapping the order of indices in the array.
+
+### Parallelizing the Wilson-Dirac operator
+- The idea here is to partition the lattice into different "blocks" to run on different cores. Each core will evaluate Dx! on each block, then we'll gather the results to get the application of Dx! on a fermion field. Typically, the blocks are partitioned in the X and T directions, and take up the entire Y and Z domains.
+- We'll want to use SIMD in one dimension on one of the loops-- conventionally this is done in the $X$ direction.
+- We can use multi-threading as well as blocking. On each block (which is on a separate processor), we can use $N_{thr}$ threads. Each thread can traverse different lattice sites. There are a few way to assign these specifications:
+  1. Blocking the $Y$ direction: here thread 0 evalutes Dx! for Y = 0, thread 1 evaluates Dx! for the Y = 1 slice, .... Once you hit $N_{thr}$, just start over, so thread $i$ evaluates the Wilson operator at $Y \in \{i + k * N_{thr} : k\in\mathbb Z\}$.
+  2. A $\sqrt{N_{thr}} \times \sqrt{N_{thr}}$ block.
+  3. Scanning along $Y$ for different $Z$ coordinates.
+-
