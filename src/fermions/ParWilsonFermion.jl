@@ -7,7 +7,6 @@ module ParWilsonFermionModule
     using Base.Threads
 
     # have no idea why using doesn't work but everything breaks
-    # that means impoort works but using does not?
     # using LatticeQCD.Actions:FermiActionParam,FermiActionParam_Wilson
     # using LatticeQCD.AbstractFermion:FermionFields,Wx!,Wdagx!,clear!,substitute_fermion!,Dx!,fermion_shift!,fermion_shiftB!,add!,set_wing_fermi!,WdagWx!,apply_periodicity,Ddagx!
     # using LatticeQCD.WilsonFermion_module:WilsonFermion,Wx!,Wdagx!,Dx!,Ddagx!,mk_gamma
@@ -41,12 +40,12 @@ module ParWilsonFermionModule
         column major format
     """
     struct ParWilsonFermion <: FermionFields
-        NC::Int64                              # Color index
-        NX::Int64                              # spatial index
+        NC::Int64
+        NX::Int64
         NY::Int64
         NZ::Int64
-        NT::Int64                              # time
-        ND::Int64                              # Dirac index 2 or 4
+        NT::Int64
+        ND::Int64                                       # 2 or 4
         f::Array{ComplexF64,6}
 
         γ::Array{ComplexF64,3}
@@ -54,7 +53,7 @@ module ParWilsonFermionModule
         rminusγ::Array{ComplexF64,3}
         hop::Float64                                    # Hopping parameter
         r::Float64                                      # Wilson term
-        hopp::Array{ComplexF64,1}                       # TODO what are hopp and hopm? hopping in the + and - directions? # I guess 
+        hopp::Array{ComplexF64,1}                       # TODO what are hopp and hopm? hopping in the + and - directions?
         hopm::Array{ComplexF64,1}
         eps::Float64
         Dirac_operator::String
@@ -92,7 +91,9 @@ module ParWilsonFermionModule
     Constructor for ParWilsonFermion.
     """
     function ParWilsonFermion(w::WilsonFermion)
-        return ParWilsonFermion(w.NC, w.NX, w.NY, w.NZ, w.NT, w.ND, w.r, w.hop, w.eps, w.MaxCGstep, w.BoundaryCondition)
+        w_cp = deepcopy(w)
+        return ParWilsonFermion(w_cp.NC, w_cp.NX, w_cp.NY, w_cp.NZ, w_cp.NT, 4, w_cp.f, w_cp.γ, w_cp.rplusγ, w_cp.rminusγ,
+            w_cp.hop, w_cp.r, w_cp.hopp, w_cp.hopm, w_cp.eps, w_cp.Dirac_operator, w_cp.MaxCGstep, w_cp.BoundaryCondition)
     end
 
     """
@@ -116,7 +117,6 @@ module ParWilsonFermionModule
         hopp .= hop
         hopm .= hop
         Dirac_operator = "Wilson"
-        # TODO why two extra components here?
         return ParWilsonFermion(NC, NX, NY, NZ, NT, ND, zeros(ComplexF64, NC, NX+2, NY+2, NZ+2, NT+2, ND),
             γ, rplusγ, rminusγ, hop, r, hopp, hopm, eps, Dirac_operator, MaxCGstep, BoundaryCondition)
     end
@@ -134,8 +134,7 @@ module ParWilsonFermionModule
     middle and 1-indexed in the color and Dirac components.
     """
     function Base.setindex!(x::ParWilsonFermion, v, i1, i2, i3, i4, i5, i6)
-        x.f[i1, i2 + 1, i3 + 1, i4 + 1, i5 + 1, i6] = v # NC, NX, NY, NZ, NT, ND
-        # x.f[i2 + 1, i3 + 1, i4 + 1, i5 + 1, i6, i1] = v # NX, NY, NZ, NT, ND, NC
+        x.f[i1, i2 + 1, i3 + 1, i4 + 1, i5 + 1, i6] = v
     end
 
     """
@@ -197,7 +196,7 @@ module ParWilsonFermionModule
 
     function Base.:*(a::ParWilsonFermion, b::ParWilsonFermion)
         c = 0.0im
-        for α=1:a.ND
+        for α=1:4
             for it=1:a.NT
                 for iz=1:a.NZ
                     for iy=1:a.NY
@@ -253,7 +252,7 @@ module ParWilsonFermionModule
 
     function Base.:*(a::T,b::ParWilsonFermion) where T <: Number
         c = similar(b)
-        for α=1:b.ND
+        for α=1:4
             for it=1:b.NT
                 for iz=1:b.NZ
                     for iy=1:b.NY
@@ -269,8 +268,8 @@ module ParWilsonFermionModule
         return c
     end
 
-    function LinearAlgebra.axpy!(a::T,X::WilsonFermion,Y::WilsonFermion) where T <: Number #Y = a*X+Y
-        for α=1:X.ND
+    function LinearAlgebra.axpy!(a::T,X::ParWilsonFermion,Y::ParWilsonFermion) where T <: Number #Y = a*X+Y
+        for α=1:4
             for it=1:X.NT
                 for iz=1:X.NZ
                     for iy=1:X.NY
@@ -332,6 +331,7 @@ module ParWilsonFermionModule
                     4,x.r,x.hop,x.eps,x.MaxCGstep,x.BoundaryCondition)
     end
 
+    # TODO these are likely broken and we should reimplement
     function LinearAlgebra.mul!(xout::ParWilsonFermion,A::AbstractMatrix,x::ParWilsonFermion)
         NX = x.NX
         NY = x.NY
@@ -352,11 +352,6 @@ module ParWilsonFermionModule
                                 xout[ic,ix,iy,iz,it,2] = A[2,1]*e1+A[2,2]*e2+A[2,3]*e3+A[2,4]*e4
                                 xout[ic,ix,iy,iz,it,3] = A[3,1]*e1+A[3,2]*e2+A[3,3]*e3+A[3,4]*e4
                                 xout[ic,ix,iy,iz,it,4] = A[4,1]*e1+A[4,2]*e2+A[4,3]*e3+A[4,4]*e4
-
-                            # for d1 =  1:4
-                            #     for d2 = 1:4
-                            #         xout[ic,ix,iy,iz,it,d1] += A[d1,d2]*x[ic,ix,iy,iz,it,d2]
-
                         end
                     end
                 end
@@ -385,10 +380,6 @@ module ParWilsonFermionModule
                             xout[ic,ix,iy,iz,it,2] = A[1,2]*e1+A[2,2]*e2+A[3,2]*e3+A[4,2]*e4
                             xout[ic,ix,iy,iz,it,3] = A[1,3]*e1+A[2,3]*e2+A[3,3]*e3+A[4,3]*e4
                             xout[ic,ix,iy,iz,it,4] = A[1,4]*e1+A[2,4]*e2+A[3,4]*e3+A[4,4]*e4
-
-                            # for d1 =  1:4
-                            #     for d2 = 1:4
-                            #         xout[ic,ix,iy,iz,it,d1] += A[d1,d2]*x[ic,ix,iy,iz,it,d2]
                         end
                     end
                 end
@@ -396,10 +387,39 @@ module ParWilsonFermionModule
         end
     end
 
+    """
+    Multiplies the Dirac structure of a matrix with that of a FermionField. This should
+    replace LatticeQCD.FermionField.mul!, which does not work.
+    """
+    function mul_dirac!(ferm::FermionFields, A::Matrix{ComplexF64}, x::FermionFields)
+        NX = x.NX
+        NY = x.NY
+        NZ = x.NZ
+        NT = x.NT
+        NC = x.NC
+        for ic=1:NC
+            for it=1:NT
+                for iz=1:NZ
+                    for iy=1:NY
+                        for ix=1:NX
+                            # TODO may want to change the indexing, it might be doing this to the padded components
+                            vec = x.f[ic, ix, iy, iz, it, :]
+                            tmp = A * vec
+                            ferm.f[ic, ix, iy, iz, it, :] = tmp
+                        end
+                    end
+                end
+            end
+        end
+        return
+    end
+
+    # TODO make a corresponding add function. Make sure we're indexing the spatial components at the correct spot.
+
     # TODO figure out what this function does
     function substitute_fermion!(H, j, x::ParWilsonFermion)
         i = 0
-        for ialpha = 1:X.ND
+        for ialpha = 1:4
             for it=1:x.NT
                 for iz=1:x.NZ
                     for iy=1:x.NY
@@ -445,30 +465,23 @@ module ParWilsonFermionModule
                 for it=1:NT
                     it1 = it + ifelse(μ ==4,1,0)
                     for iz=1:NZ
-                        iz1 = iz + ifelse(μ == 3,1,0)
+                        iz1 = iz + ifelse(μ ==3,1,0)
                         for iy=1:NY
-                            iy1 = iy + ifelse(μ == 2,1,0)
+                            iy1 = iy + ifelse(μ ==2,1,0)
                             @simd for ix=1:NX
                                 ix1 = ix + ifelse(μ ==1,1,0)
 
-                                b[1,ix,iy,iz,it,ialpha] =   u[μ][1,1,ix,iy,iz,it]*a[1,ix1,iy1,iz1,it1,ialpha] +
+                                b[1,ix,iy,iz,it,ialpha] = u[μ][1,1,ix,iy,iz,it]*a[1,ix1,iy1,iz1,it1,ialpha] +
                                                             u[μ][1,2,ix,iy,iz,it]*a[2,ix1,iy1,iz1,it1,ialpha] +
                                                             u[μ][1,3,ix,iy,iz,it]*a[3,ix1,iy1,iz1,it1,ialpha]
 
-                                b[2,ix,iy,iz,it,ialpha] =   u[μ][2,1,ix,iy,iz,it]*a[1,ix1,iy1,iz1,it1,ialpha] +
+                                b[2,ix,iy,iz,it,ialpha] = u[μ][2,1,ix,iy,iz,it]*a[1,ix1,iy1,iz1,it1,ialpha] +
                                                             u[μ][2,2,ix,iy,iz,it]*a[2,ix1,iy1,iz1,it1,ialpha] +
                                                             u[μ][2,3,ix,iy,iz,it]*a[3,ix1,iy1,iz1,it1,ialpha]
 
-                                b[3,ix,iy,iz,it,ialpha] =   u[μ][3,1,ix,iy,iz,it]*a[1,ix1,iy1,iz1,it1,ialpha] +
+                                b[3,ix,iy,iz,it,ialpha] = u[μ][3,1,ix,iy,iz,it]*a[1,ix1,iy1,iz1,it1,ialpha] +
                                                             u[μ][3,2,ix,iy,iz,it]*a[2,ix1,iy1,iz1,it1,ialpha] +
                                                             u[μ][3,3,ix,iy,iz,it]*a[3,ix1,iy1,iz1,it1,ialpha]
-
-                                # for n1 = 1:3
-                                #     for n2 = 1:3
-                                #         n1,ix,iy,iz,it,ialpha] += u[μ][n1,n2,ix,iy,iz,it]*a[n2,ix1,iy1,iz1,it1,ialpha]
-                                #     end
-                                # end
-
                             end
                         end
                     end
@@ -476,7 +489,7 @@ module ParWilsonFermionModule
             end
 
         elseif μ < 0
-            for ialpha =1:ND
+            for ialpha =1:4
                 for it=1:NT
                     it1 = it - ifelse(-μ ==4,1,0)
                     for iz=1:NZ
@@ -497,13 +510,6 @@ module ParWilsonFermionModule
                                 b[3,ix,iy,iz,it,ialpha] = conj(u[-μ][1,3,ix1,iy1,iz1,it1])*a[1,ix1,iy1,iz1,it1,ialpha] +
                                                             conj(u[-μ][2,3,ix1,iy1,iz1,it1])*a[2,ix1,iy1,iz1,it1,ialpha] +
                                                             conj(u[-μ][3,3,ix1,iy1,iz1,it1])*a[3,ix1,iy1,iz1,it1,ialpha]
-
-                                # for n1 = 1:3
-                                #     for n2 = 1:3 
-                                #         b[n1,ix,iy,iz,it,ialpha] += conj(u[μ][n1,n2,ix,iy,iz,it])*a[n2,ix1,iy1,iz1,it1,ialpha]
-                                #     end
-                                # end
-
                             end
                         end
                     end
@@ -527,7 +533,7 @@ module ParWilsonFermionModule
 
         if μ > 0
             n6 = size(a.f)[6]
-            for ialpha=1:ND
+            for ialpha=1:4
                 for it=1:NT
                     it1 = it + ifelse(μ ==4,1,0)
                     for iz=1:NZ
@@ -548,13 +554,6 @@ module ParWilsonFermionModule
                                 b[3,ix,iy,iz,it,ialpha] = u[μ][3,1,ix,iy,iz,it]*a[1,ix1,iy1,iz1,it1,ialpha] +
                                                             u[μ][3,2,ix,iy,iz,it]*a[2,ix1,iy1,iz1,it1,ialpha] +
                                                             u[μ][3,3,ix,iy,iz,it]*a[3,ix1,iy1,iz1,it1,ialpha]
-
-                                # for n1 = 1:3
-                                #     for n2 in 1:3 
-                                #         b[n1,ix,iy,iz,it,ialpha] += u[μ][n1,n2,ix,iy,iz,it]*a[n2,ix1,iy1,iz1,it1,ialpha]
-                                #     end
-                                # end
-
                             end
                         end
                     end
@@ -562,7 +561,7 @@ module ParWilsonFermionModule
             end
 
         elseif μ < 0
-            for ialpha =1:ND
+            for ialpha =1:4
                 for it=1:NT
                     it1 = it - ifelse(-μ ==4,1,0) #idel[4]
                     for iz=1:NZ
@@ -583,12 +582,6 @@ module ParWilsonFermionModule
                                 b[3,ix,iy,iz,it,ialpha] = conj(u[-μ][1,3,ix1,iy1,iz1,it1])*a[1,ix1,iy1,iz1,it1,ialpha] +
                                                             conj(u[-μ][2,3,ix1,iy1,iz1,it1])*a[2,ix1,iy1,iz1,it1,ialpha] +
                                                             conj(u[-μ][3,3,ix1,iy1,iz1,it1])*a[3,ix1,iy1,iz1,it1,ialpha]
-                                # for n1 = 1:3
-                                #     for n2 = 1:3 
-                                #         b[n1,ix,iy,iz,it,ialpha] += u[μ][n1,n2,ix,iy,iz,it]*a[n2,ix1,iy1,iz1,it1,ialpha]
-                                #     end
-                                # end
-
                             end
                         end
                     end
@@ -704,9 +697,23 @@ module ParWilsonFermionModule
         temp2 = temps[2]
 
         clear!(temp)
-        set_wing_fermi!(x)              # may want to move this out
+        set_wing_fermi!(x)
 
-        # TODO function stub
+        for ν=1:4
+            # TODO make sure fermion shift works
+            # Workflow: project, shift, recon
+            fermion_shift!(temp1,U,ν,x)
+
+            #... Fast Dirac multiplication
+            mul!(temp1,view(x.rminusγ,:,:,ν),temp1)
+            fermion_shift!(temp2,U,-ν,x)
+            mul!(temp2,view(x.rplusγ,:,:,ν),temp2)
+
+            add!(temp,0.5,temp1,0.5,temp2)
+        end
+
+        clear!(xout)
+        add!(xout,1/(2*x.hop),x,-1,temp)
 
         return
     end
@@ -791,24 +798,53 @@ module ParWilsonFermionModule
     end
 
     """
-    Projects a spinor x in the μ direction.
+    Projects a spinor x in the μ direction onto a halfspinor.
 
     Parameters
     ----------
+    out::ParWilsonFermion
+        Output ParWilsonFermion field (ND = 2)
     x::ParWilsonFermion
         Wilson fermion field to project with ND = 4.
     μ::Integer
-        Direction, should be in {1, 2, 3, 4} or {-1, -2, -3, -4}
+        Direction, should be in {1, 2, 3, 4}
+    pos::Bool
+        If positive or negative projector. True if positive.
 
     Returns
     -------
-    ParWilsonFermion
-        Projected spinor (ND = 2)
     """
-    function proj(x::ParWilsonFermion, μ::Integer)
-        # y = ParWilsonFermion(...)
-        # TODO method stub
-        return y
+    function proj_halfspinor!(out::ParWilsonFermion, x::ParWilsonFermion, μ::Integer, plus::Bool)
+        if plus
+            if μ == 1
+                out.f[:, :, :, :, :, 1] .= x.f[:, :, :, :, :, 1] .- im .* x.f[:, :, :, :, :, 4]          # h0
+                out.f[:, :, :, :, :, 2] .= x.f[:, :, :, :, :, 2] .- im .* x.f[:, :, :, :, :, 3]          # h1
+            elseif μ == 2
+                out.f[:, :, :, :, :, 1] .= x.f[:, :, :, :, :, 1] .- x.f[:, :, :, :, :, 4]
+                out.f[:, :, :, :, :, 2] .= x.f[:, :, :, :, :, 2] .+ x.f[:, :, :, :, :, 3]
+            elseif μ == 3
+                out.f[:, :, :, :, :, 1] .= x.f[:, :, :, :, :, 1] .- im .* x.f[:, :, :, :, :, 3]
+                out.f[:, :, :, :, :, 2] .= x.f[:, :, :, :, :, 2] .+ im .* x.f[:, :, :, :, :, 4]
+            else
+                out.f[:, :, :, :, :, 1] .= x.f[:, :, :, :, :, 1] .- x.f[:, :, :, :, :, 3]
+                out.f[:, :, :, :, :, 2] .= x.f[:, :, :, :, :, 2] .- x.f[:, :, :, :, :, 4]
+            end
+        else
+            if μ == 1
+                out.f[:, :, :, :, :, 1] .= x.f[:, :, :, :, :, 1] .+ im .* x.f[:, :, :, :, :, 4]          # h0
+                out.f[:, :, :, :, :, 2] .= x.f[:, :, :, :, :, 2] .+ im .* x.f[:, :, :, :, :, 3]          # h1
+            elseif μ == 2
+                out.f[:, :, :, :, :, 1] .= x.f[:, :, :, :, :, 1] .+ x.f[:, :, :, :, :, 4]
+                out.f[:, :, :, :, :, 2] .= x.f[:, :, :, :, :, 2] .- x.f[:, :, :, :, :, 3]
+            elseif μ == 3
+                out.f[:, :, :, :, :, 1] .= x.f[:, :, :, :, :, 1] .+ im .* x.f[:, :, :, :, :, 3]
+                out.f[:, :, :, :, :, 2] .= x.f[:, :, :, :, :, 2] .- im .* x.f[:, :, :, :, :, 4]
+            else
+                out.f[:, :, :, :, :, 1] .= x.f[:, :, :, :, :, 1] .+ x.f[:, :, :, :, :, 3]
+                out.f[:, :, :, :, :, 2] .= x.f[:, :, :, :, :, 2] .+ x.f[:, :, :, :, :, 4]
+            end
+        end
+        return
     end
 
     """
@@ -816,6 +852,8 @@ module ParWilsonFermionModule
 
     Parameters
     ----------
+    out::ParWilsonFermion (ND = 4)
+        Reconstructed spinor (two spinor components instead of 4.)
     y::ParWilsonFermion (ND = 2)
         TwoSpinor fermion field to reconstruct.
     μ::Integer
@@ -826,10 +864,65 @@ module ParWilsonFermionModule
     ParWilsonFermion
         Reconstructed spinor (two spinor components instead of 4.)
     """
-    function recon(y::ParWilsonFermion, μ::Integer)
-        # x = ParWilsonFermion()
-        # TODO method stub
-        return x
+    function recon_halfspinor!(out::ParWilsonFermion, x::ParWilsonFermion, μ::Integer, plus::Bool)
+        out.f[:, :, :, :, :, 1] .= x.f[:, :, :, :, :, 1]                            # h0
+        out.f[:, :, :, :, :, 2] .= x.f[:, :, :, :, :, 2]                            # h1
+        if plus
+            if μ == 1
+                out.f[:, :, :, :, :, 3] .= im .* x.f[:, :, :, :, :, 2]              # r2
+                out.f[:, :, :, :, :, 4] .= im .* x.f[:, :, :, :, :, 1]              # r3
+            elseif μ == 2
+                out.f[:, :, :, :, :, 3] .= x.f[:, :, :, :, :, 2]
+                out.f[:, :, :, :, :, 4] .= -x.f[:, :, :, :, :, 1]
+            elseif μ == 3
+                out.f[:, :, :, :, :, 3] .= im .* x.f[:, :, :, :, :, 1]
+                out.f[:, :, :, :, :, 4] .= -im .* x.f[:, :, :, :, :, 2]
+            else
+                out.f[:, :, :, :, :, 3] .= -x.f[:, :, :, :, :, 1]
+                out.f[:, :, :, :, :, 4] .= -x.f[:, :, :, :, :, 2]
+            end
+        else
+            if μ == 1
+                out.f[:, :, :, :, :, 3] .= -im .* x.f[:, :, :, :, :, 2]
+                out.f[:, :, :, :, :, 4] .= -im .* x.f[:, :, :, :, :, 1]
+            elseif μ == 2
+                out.f[:, :, :, :, :, 3] .= -x.f[:, :, :, :, :, 2]
+                out.f[:, :, :, :, :, 4] .= x.f[:, :, :, :, :, 1]
+            elseif μ == 3
+                out.f[:, :, :, :, :, 3] .= -im .* x.f[:, :, :, :, :, 1]
+                out.f[:, :, :, :, :, 4] .= im .* x.f[:, :, :, :, :, 2]
+            else
+                out.f[:, :, :, :, :, 3] .= x.f[:, :, :, :, :, 1]
+                out.f[:, :, :, :, :, 4] .= x.f[:, :, :, :, :, 2]
+            end
+        end
+        return
+    end
+
+    """
+    Projects a spinor x in the μ direction (returns a Dirac spinor).
+
+    Parameters
+    ----------
+    out::ParWilsonFermion (ND = 4)
+        Output ParWilsonFermion field.
+    x::ParWilsonFermion (ND = 4)
+        Wilson fermion field to project with ND = 4.
+    tmp::ParWilsonFermion (ND = 2)
+        Halfspinor field for temporary step
+    μ::Integer
+        Direction, should be in {1, 2, 3, 4}
+    pos::Bool
+        If positive or negative projector. True if positive.
+
+    Returns
+    -------
+    ParWilsonFermion
+        Projected spinor (ND = 4)
+    """
+    function project!(out::ParWilsonFermion, x::ParWilsonFermion, tmp::ParWilsonFermion, μ::Integer, plus::Bool)
+        proj_halfspinor!(tmp, x, μ, plus)
+        recon_halfspinor!(out, tmp, μ, plus)
     end
 
     ############################################################################
@@ -839,19 +932,19 @@ module ParWilsonFermionModule
     """
     Fills in a FermionFields instance with an array of the same shape.
     """
-    function fill!(x::FermionFields, mat::Array{ComplexF64,6})
-        try
-            global Nd = x.ND
-        catch
-            global Nd = 4
-        end
+    function fill!(x::FermionFields, mat::Array{ComplexF64,6}; Nd::Integer = 4)
+        # try
+        #     global Nd = x.ND
+        # catch
+        #     global Nd = 4
+        # end
         @threads for it = 1:x.NT
             for α = 1:Nd
                 for iz = 1:x.NZ
                     for iy = 1:x.NY
                         for ic = 1:x.NC
                             @simd for ix = 1:x.NX
-                                x[ic,ix,iy,iz,it,α] = mat[ic,ix,iy,iz,it,α]
+                                x.f[ic,ix,iy,iz,it,α] = mat[ic,ix,iy,iz,it,α]
                             end
                         end
                     end
