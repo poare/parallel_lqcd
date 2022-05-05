@@ -130,6 +130,13 @@ module ParWilsonFermionModule
     end
 
     """
+    Gets a halfspinor with the same parameters as an arbitrary ParWilsonFermion.
+    """
+    function get_halfspinor(x::ParWilsonFermion)
+        return ParWilsonFermion(x.NC, x.NX, x.NY, x.NZ, x.NT, 2, x.r, x.hop, x.eps, x.MaxCGstep, x.BoundaryCondition)
+    end
+
+    """
     Sets the (i1, i2, i3, i4, i5, i6) component of x.f (the fermion field) to v. Note that x.f is 0-indexed in the
     middle and 1-indexed in the color and Dirac components.
     """
@@ -398,11 +405,10 @@ module ParWilsonFermionModule
         NT = x.NT
         NC = x.NC
         for ic=1:NC
-            for it=1:NT
-                for iz=1:NZ
-                    for iy=1:NY
-                        for ix=1:NX
-                            # TODO may want to change the indexing, it might be doing this to the padded components
+            for it=1:NT + 2
+                for iz=1:NZ + 2
+                    for iy=1:NY + 2
+                        for ix=1:NX + 2
                             vec = x.f[ic, ix, iy, iz, it, :]
                             tmp = A * vec
                             ferm.f[ic, ix, iy, iz, it, :] = tmp
@@ -413,8 +419,6 @@ module ParWilsonFermionModule
         end
         return
     end
-
-    # TODO make a corresponding add function. Make sure we're indexing the spatial components at the correct spot.
 
     # TODO figure out what this function does
     function substitute_fermion!(H, j, x::ParWilsonFermion)
@@ -460,7 +464,6 @@ module ParWilsonFermionModule
         NC = 3
 
         if μ > 0
-            n6 = size(a.f)[6]
             for ialpha=1:ND
                 for it=1:NT
                     it1 = it + ifelse(μ ==4,1,0)
@@ -489,7 +492,7 @@ module ParWilsonFermionModule
             end
 
         elseif μ < 0
-            for ialpha =1:4
+            for ialpha =1:ND
                 for it=1:NT
                     it1 = it - ifelse(-μ ==4,1,0)
                     for iz=1:NZ
@@ -595,6 +598,71 @@ module ParWilsonFermionModule
     ############################################################################
 
     """
+    set_wing_fermi! function (sets the padding to the appropriate boundary condition for the field) which actually works.
+    """
+    function set_wing_fermi_correct!(a::FermionFields)
+        NT = a.NT
+        NZ = a.NZ
+        NY = a.NY
+        NX = a.NX
+        NC = a.NC
+
+        #!  X-direction
+        for ialpha=1:4
+            for it=1:NT
+                for iz = 1:NZ
+                    for iy=1:NY
+                        for k=1:NC
+                            a.f[k, 1, iy + 1, iz + 1, it + 1, ialpha] = a.BoundaryCondition[1] * a.f[k, NX + 1, iy + 1, iz + 1, it + 1, ialpha]
+                            a.f[k, NX + 2, iy + 1, iz + 1, it + 1, ialpha] = a.BoundaryCondition[1] * a.f[k, 2, iy + 1, iz + 1, it + 1, ialpha]
+                        end
+                    end
+                end
+            end
+        end
+
+        #Y-direction
+        for ialpha = 1:4
+            for it=1:NT
+                for iz=1:NZ
+                    for ix=1:NX
+                        for k=1:NC
+                            a.f[k, ix + 1, 1, iz + 1,it + 1, ialpha] = a.BoundaryCondition[2] * a.f[k, ix + 1, NY + 1, iz + 1, it + 1, ialpha]
+                            a.f[k, ix + 1, NY + 2, iz + 1, it + 1, ialpha] = a.BoundaryCondition[2] * a.f[k, ix + 1, 2, iz + 1, it + 1, ialpha]
+                        end
+                    end
+                end
+            end
+        end
+
+        for ialpha=1:4
+            # Z-direction
+            for it=1:NT
+                for iy=1:NY
+                    for ix=1:NX
+                        for k=1:NC
+                            a.f[k, ix + 1, iy + 1, 1, it + 1,ialpha] = a.BoundaryCondition[3] * a.f[k, ix + 1, iy + 1, NZ + 1, it + 1, ialpha]
+                            a.f[k, ix + 1, iy + 1, NZ + 2, it + 1, ialpha] = a.BoundaryCondition[3] * a.f[k, ix + 1, iy + 1, 2, it + 1, ialpha]
+                        end
+                    end
+                end
+            end
+
+            #T-direction
+            for iz=1:NZ
+                for iy=1:NY
+                    for ix=1:NX
+                        for k=1:NC
+                            a.f[k, ix + 1, iy + 1, iz + 1, 1, ialpha] = a.BoundaryCondition[4] * a.f[k, ix + 1, iy + 1, iz + 1, NT + 1, ialpha]
+                            a.f[k, ix + 1, iy + 1, iz + 1, NT + 2, ialpha] = a.BoundaryCondition[4] * a.f[k, ix + 1, iy + 1, iz + 1, 2, ialpha]
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    """
     Pads the front and end of each lattice direction with the appropriate boundary condition.
     """
     function set_wing_fermi_threads!(a::ParWilsonFermion)
@@ -660,61 +728,61 @@ module ParWilsonFermionModule
     ############################################################################
 
     function Dx_serial!(xout::ParWilsonFermion, U::Array{G,1}, x::ParWilsonFermion, temps::Array{T,1}) where  {T <: FermionFields, G <: GaugeFields}
-        temp = temps[4]
         temp1 = temps[1]
         temp2 = temps[2]
+        temp3 = temps[3]
+        temp4 = temps[4]
+        temp = temps[5]
 
         clear!(temp)
-        set_wing_fermi!(x)              # may want to move this out
+        set_wing_fermi_correct!(x)
         for ν=1:4
-            fermion_shift!(temp1,U,ν,x)
+            # shift + project
+            fermion_shift!(temp1, U, ν, x)
+            mul_dirac!(temp3, x.rminusγ[:, :, ν], temp1)
 
-            #... Dirac multiplication
-            mul!(temp1,view(x.rminusγ,:,:,ν),temp1)
+            fermion_shift!(temp2, U, -ν, x)
+            mul_dirac!(temp4, x.rplusγ[:, :, ν], temp2)
 
-            #
-            fermion_shift!(temp2,U,-ν,x)
-            mul!(temp2,view(x.rplusγ,:,:,ν),temp2)
-
-            add!(temp,0.5,temp1,0.5,temp2)          # TODO see if we can make add! faster
-
+            add!(temp, 0.5, temp3, 0.5, temp4)
         end
 
         clear!(xout)
-        add!(xout,1/(2*x.hop),x,-1,temp)
-
-        #display(xout)
-        #    exit()
+        add!(xout, 1/(2*x.hop), x, -1, temp)            # Off by a factor of 2κ?
         return
     end
 
     """
     Evaluates Dx! using the half-spinor projection.
     """
-    function Dx_halfspinor!(xout::ParWilsonFermion, U::Array{G,1}, x::ParWilsonFermion, temps::Array{T,1}) where  {T <: FermionFields, G <: GaugeFields}
-        temp = temps[4]
-        temp1 = temps[1]
+    function Dx_halfspinor!(xout::ParWilsonFermion, U::Array{G, 1}, x::ParWilsonFermion, full_temps::Array{T, 1},
+                    temps::Array{T, 1}) where  {T <: FermionFields, G <: GaugeFields}
+        temp1 = temps[1]            # temps must be a matrix of Nd = 2 halfspinors.
         temp2 = temps[2]
+        temp3 = temps[3]
+        temp4 = temps[4]
+
+        full_temp1 = full_temps[1]
+        full_temp2 = full_temps[2]
+        temp = full_temps[3]
 
         clear!(temp)
-        set_wing_fermi!(x)
+        set_wing_fermi_correct!(x)
 
-        for ν=1:4
-            # TODO make sure fermion shift works
-            # Workflow: project, shift, recon
-            fermion_shift!(temp1,U,ν,x)
+        for ν=1:4                   # Workflow: project, shift, recon
+            proj_halfspinor!(temp1, x, ν, false)
+            fermion_shift!(temp3, U, ν, temp1)
+            recon_halfspinor!(full_temp1, temp3, ν, false)
 
-            #... Fast Dirac multiplication
-            mul!(temp1,view(x.rminusγ,:,:,ν),temp1)
-            fermion_shift!(temp2,U,-ν,x)
-            mul!(temp2,view(x.rplusγ,:,:,ν),temp2)
+            proj_halfspinor!(temp2, x, ν, true)
+            fermion_shift!(temp4, U, -ν, temp2)
+            recon_halfspinor!(full_temp2, temp4, ν, true)
 
-            add!(temp,0.5,temp1,0.5,temp2)
+            add!(temp, 0.5, full_temp1, 0.5, full_temp2)
         end
 
         clear!(xout)
-        add!(xout,1/(2*x.hop),x,-1,temp)
-
+        add!(xout, 1/(2*x.hop), x, -1, temp)
         return
     end
 
@@ -756,7 +824,7 @@ module ParWilsonFermionModule
             #mul!(temp2,view(x.rplusγ,:,:,ν),temp2)
             mul!(temp2,view(x.rminusγ,:,:,ν),temp2)
 
-            add!(temp,0.5,temp1,0.5,temp2)
+            add!(temp,0.5,temp1,0.5,temp2)          # TODO replace add
 
 
         end
@@ -933,18 +1001,13 @@ module ParWilsonFermionModule
     Fills in a FermionFields instance with an array of the same shape.
     """
     function fill!(x::FermionFields, mat::Array{ComplexF64,6}; Nd::Integer = 4)
-        # try
-        #     global Nd = x.ND
-        # catch
-        #     global Nd = 4
-        # end
         @threads for it = 1:x.NT
             for α = 1:Nd
                 for iz = 1:x.NZ
                     for iy = 1:x.NY
                         for ic = 1:x.NC
                             @simd for ix = 1:x.NX
-                                x.f[ic,ix,iy,iz,it,α] = mat[ic,ix,iy,iz,it,α]
+                                x.f[ic, ix + 1,iy + 1,iz + 1,it + 1, α] = mat[ic, ix, iy, iz, it, α]
                             end
                         end
                     end

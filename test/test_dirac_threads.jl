@@ -9,7 +9,7 @@ using LatticeQCD.Actions:Actions
 using LatticeQCD.WilsonFermion_module:WilsonFermion,Dx!
 using LatticeQCD.Gaugefields:GaugeFields,RandomGauges,SU3GaugeFields
 include("../src/fermions/ParWilsonFermion.jl")
-using ..ParWilsonFermionModule: ParWilsonFermion,fill!,Dx_serial!
+using ..ParWilsonFermionModule: ParWilsonFermion,fill!,Dx_serial!,Dx_halfspinor!
 using Base.Threads
 using HDF5
 n_threads = Threads.nthreads()
@@ -38,24 +38,41 @@ for μ = 1:4
 end
 
 ################################################################################
-############################### Init and run test ##############################
+################################ Dx! halfspinor ################################
 ################################################################################
 
 ser_ferm_out = WilsonFermion(Nc, Nx, Ny, Nz, Nt, ferm_param, bc)
 par_ferm_out = ParWilsonFermion(ser_ferm_out)
+par_ferm_halfspinor_out = ParWilsonFermion(ser_ferm_out)
 temp_ser = [
+    WilsonFermion(Nc, Nx, Ny, Nz, Nt, ferm_param, bc),
     WilsonFermion(Nc, Nx, Ny, Nz, Nt, ferm_param, bc),
     WilsonFermion(Nc, Nx, Ny, Nz, Nt, ferm_param, bc),
     WilsonFermion(Nc, Nx, Ny, Nz, Nt, ferm_param, bc),
     WilsonFermion(Nc, Nx, Ny, Nz, Nt, ferm_param, bc)
     ]
 temp_par = [ParWilsonFermion(ferm) for ferm = temp_ser]
+full_temps = [
+    ParWilsonFermion(Nc, Nx, Ny, Nz, Nt, 4, ferm_param, bc),
+    ParWilsonFermion(Nc, Nx, Ny, Nz, Nt, 4, ferm_param, bc),
+    ParWilsonFermion(Nc, Nx, Ny, Nz, Nt, 4, ferm_param, bc)
+]
+half_temps = [
+    ParWilsonFermion(Nc, Nx, Ny, Nz, Nt, 2, ferm_param, bc),
+    ParWilsonFermion(Nc, Nx, Ny, Nz, Nt, 2, ferm_param, bc),
+    ParWilsonFermion(Nc, Nx, Ny, Nz, Nt, 2, ferm_param, bc),
+    ParWilsonFermion(Nc, Nx, Ny, Nz, Nt, 2, ferm_param, bc)
+]
 
-@btime Dx!(ser_ferm_out, U, ser_ferm, temp_ser)
-@btime Dx_serial!(par_ferm_out, U, par_ferm, temp_par)
+# Dx_serial!(par_ferm_out, U, par_ferm, temp_par)
+# Dx_halfspinor!(par_ferm_halfspinor_out, U, par_ferm, full_temps, half_temps)
+t_ser = @belapsed Dx_serial!(par_ferm_out, U, par_ferm, temp_par)
+t_half = @belapsed Dx_halfspinor!(par_ferm_halfspinor_out, U, par_ferm, full_temps, half_temps)
 
-# compare output fermions
-println("Maximum deviation between parallel and serial Dx! output is $(maximum(abs.(ser_ferm_out.f - par_ferm_out.f)))")
+# compare timings and output fermions
+println("Standard Dx! time: $(t_ser)")
+println("Halfspinor Dx! time: $(t_half)")
+println("Maximum deviation between regular and halfspinor Dx! output is $(maximum(abs.(par_ferm_out.f - par_ferm_halfspinor_out.f)))")
 
 ################################################################################
 ################################## Save data ###################################
