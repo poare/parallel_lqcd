@@ -5,6 +5,7 @@ module ParWilsonFermionModule
 
     using LinearAlgebra
     using Base.Threads
+    using StaticArrays
 
     # have no idea why using doesn't work but everything breaks
     # using LatticeQCD.Actions:FermiActionParam,FermiActionParam_Wilson
@@ -420,7 +421,41 @@ module ParWilsonFermionModule
         return
     end
 
-    # TODO figure out what this function does
+    """
+    Adds two FermionFields together at a given spacetime point coords.
+    """
+    function add_pt!(c::FermionFields, alpha::Number, a::FermionFields, beta::Number, b::FermionFields, coords::SVector{4, Int64})
+        Nc, n2, n3, n4, n5, Nd = size(a.f)
+        ix = coords[1] + 1
+        iy = coords[2] + 1
+        iz = coords[3] + 1
+        it = coords[4] + 1
+
+        for ialpha = 1:Nd
+            @simd for ic = 1:Nc
+                c.f[ic, ix, iy, iz, it, ialpha] += alpha * a.f[ic, ix, iy, iz, it, ialpha] + beta * b.f[ic, ix, iy, iz, it, ialpha]
+            end
+        end
+        return
+    end
+
+    """
+    Adds two FermionFields together in a range of spacetime point coords.
+    """
+    function add_rg!(c::FermionFields, alpha::Number, a::FermionFields, beta::Number, b::FermionFields, coords_min::SVector{4, Int64}, coords_max::SVector{4, Int64})
+        ix_min = coords_min[1] + 1
+        iy_min = coords_min[2] + 1
+        iz_min = coords_min[3] + 1
+        it_min = coords_min[4] + 1
+        ix_max = coords_max[1] + 1
+        iy_max = coords_max[2] + 1
+        iz_max = coords_max[3] + 1
+        it_max = coords_max[4] + 1
+
+        c.f[:, ix_min:ix_max, iy_min:iy_max, iz_min:iz_max, it_min:it_max, :] .+= alpha .* a.f[:, ix_min:ix_max, iy_min:iy_max, iz_min:iz_max, it_min:it_max, :] .+ beta .* b.f[:, ix_min:ix_max, iy_min:iy_max, iz_min:iz_max, it_min:it_max, :]
+        return
+    end
+
     function substitute_fermion!(H, j, x::ParWilsonFermion)
         i = 0
         for ialpha = 1:4
@@ -520,6 +555,84 @@ module ParWilsonFermionModule
             end
         end
 
+    end
+
+    """
+    Only shifts the fermion field at a specific point
+    """
+    function fermion_shift_pt!(b::ParWilsonFermion, u::Array{T,1}, coords::SVector{4, Int64}, μ::Int, a::ParWilsonFermion) where T <: SU3GaugeFields
+        if μ == 0
+            substitute!(b,a)
+            return
+        end
+        ND = a.ND
+        NC = 3
+
+        # ix = coords[1]
+        # iy = coords[2]
+        # iz = coords[3]
+        # it = coords[4]
+        ix = coords[1] + 1
+        iy = coords[2] + 1
+        iz = coords[3] + 1
+        it = coords[4] + 1
+
+        if μ > 0
+            for ialpha=1:ND
+                it1 = it + ifelse(μ == 4,1,0)
+                iz1 = iz + ifelse(μ == 3,1,0)
+                iy1 = iy + ifelse(μ == 2,1,0)
+                ix1 = ix + ifelse(μ == 1,1,0)
+
+                # NOTE if NDW != 1, will have to change padding on u[μ] to ix ± NDW
+                # b[1,ix,iy,iz,it,ialpha] = u[μ][1,1,ix,iy,iz,it] * a[1,ix1,iy1,iz1,it1,ialpha] +
+                #                             u[μ][1,2,ix,iy,iz,it] * a[2,ix1,iy1,iz1,it1,ialpha] +
+                #                             u[μ][1,3,ix,iy,iz,it] * a[3,ix1,iy1,iz1,it1,ialpha]
+                # b[2,ix,iy,iz,it,ialpha] = u[μ][2,1,ix,iy,iz,it] * a[1,ix1,iy1,iz1,it1,ialpha] +
+                #                             u[μ][2,2,ix,iy,iz,it] * a[2,ix1,iy1,iz1,it1,ialpha] +
+                #                             u[μ][2,3,ix,iy,iz,it] * a[3,ix1,iy1,iz1,it1,ialpha]
+                # b[3,ix,iy,iz,it,ialpha] = u[μ][3,1,ix,iy,iz,it] * a[1,ix1,iy1,iz1,it1,ialpha] +
+                #                             u[μ][3,2,ix,iy,iz,it] * a[2,ix1,iy1,iz1,it1,ialpha] +
+                #                             u[μ][3,3,ix,iy,iz,it] * a[3,ix1,iy1,iz1,it1,ialpha]
+                b.f[1,ix,iy,iz,it,ialpha] = u[μ].g[1,1,ix,iy,iz,it] * a.f[1,ix1,iy1,iz1,it1,ialpha] +
+                                            u[μ].g[1,2,ix,iy,iz,it] * a.f[2,ix1,iy1,iz1,it1,ialpha] +
+                                            u[μ].g[1,3,ix,iy,iz,it] * a.f[3,ix1,iy1,iz1,it1,ialpha]
+                b.f[2,ix,iy,iz,it,ialpha] = u[μ].g[2,1,ix,iy,iz,it] * a.f[1,ix1,iy1,iz1,it1,ialpha] +
+                                            u[μ].g[2,2,ix,iy,iz,it] * a.f[2,ix1,iy1,iz1,it1,ialpha] +
+                                            u[μ].g[2,3,ix,iy,iz,it] * a.f[3,ix1,iy1,iz1,it1,ialpha]
+                b.f[3,ix,iy,iz,it,ialpha] = u[μ].g[3,1,ix,iy,iz,it] * a.f[1,ix1,iy1,iz1,it1,ialpha] +
+                                            u[μ].g[3,2,ix,iy,iz,it] * a.f[2,ix1,iy1,iz1,it1,ialpha] +
+                                            u[μ].g[3,3,ix,iy,iz,it] * a.f[3,ix1,iy1,iz1,it1,ialpha]
+            end
+
+        elseif μ < 0
+            for ialpha =1:ND
+                it1 = it - ifelse(-μ ==4,1,0)
+                iz1 = iz - ifelse(-μ ==3,1,0)
+                iy1 = iy - ifelse(-μ ==2,1,0)
+                ix1 = ix - ifelse(-μ ==1,1,0)
+
+                # b[1,ix,iy,iz,it,ialpha] = conj(u[-μ][1,1,ix1,iy1,iz1,it1])*a[1,ix1,iy1,iz1,it1,ialpha] +
+                #                             conj(u[-μ][2,1,ix1,iy1,iz1,it1])*a[2,ix1,iy1,iz1,it1,ialpha] +
+                #                             conj(u[-μ][3,1,ix1,iy1,iz1,it1])*a[3,ix1,iy1,iz1,it1,ialpha]
+                # b[2,ix,iy,iz,it,ialpha] = conj(u[-μ][1,2,ix1,iy1,iz1,it1])*a[1,ix1,iy1,iz1,it1,ialpha] +
+                #                             conj(u[-μ][2,2,ix1,iy1,iz1,it1])*a[2,ix1,iy1,iz1,it1,ialpha] +
+                #                             conj(u[-μ][3,2,ix1,iy1,iz1,it1])*a[3,ix1,iy1,iz1,it1,ialpha]
+                # b[3,ix,iy,iz,it,ialpha] = conj(u[-μ][1,3,ix1,iy1,iz1,it1])*a[1,ix1,iy1,iz1,it1,ialpha] +
+                #                             conj(u[-μ][2,3,ix1,iy1,iz1,it1])*a[2,ix1,iy1,iz1,it1,ialpha] +
+                #                             conj(u[-μ][3,3,ix1,iy1,iz1,it1])*a[3,ix1,iy1,iz1,it1,ialpha]
+                b.f[1,ix,iy,iz,it,ialpha] = conj(u[-μ].g[1,1,ix1,iy1,iz1,it1]) * a.f[1,ix1,iy1,iz1,it1,ialpha] +
+                                            conj(u[-μ].g[2,1,ix1,iy1,iz1,it1]) * a.f[2,ix1,iy1,iz1,it1,ialpha] +
+                                            conj(u[-μ].g[3,1,ix1,iy1,iz1,it1]) * a.f[3,ix1,iy1,iz1,it1,ialpha]
+                b.f[2,ix,iy,iz,it,ialpha] = conj(u[-μ].g[1,2,ix1,iy1,iz1,it1]) * a.f[1,ix1,iy1,iz1,it1,ialpha] +
+                                            conj(u[-μ].g[2,2,ix1,iy1,iz1,it1]) * a.f[2,ix1,iy1,iz1,it1,ialpha] +
+                                            conj(u[-μ].g[3,2,ix1,iy1,iz1,it1]) * a.f[3,ix1,iy1,iz1,it1,ialpha]
+                b.f[3,ix,iy,iz,it,ialpha] = conj(u[-μ].g[1,3,ix1,iy1,iz1,it1]) * a.f[1,ix1,iy1,iz1,it1,ialpha] +
+                                            conj(u[-μ].g[2,3,ix1,iy1,iz1,it1]) * a.f[2,ix1,iy1,iz1,it1,ialpha] +
+                                            conj(u[-μ].g[3,3,ix1,iy1,iz1,it1]) * a.f[3,ix1,iy1,iz1,it1,ialpha]
+            end
+        end
+        return
     end
 
     function fermion_shift_gamma!(b::ParWilsonFermion,u::Array{T,1},μ::Int,a::ParWilsonFermion) where T <: SU3GaugeFields
@@ -787,14 +900,175 @@ module ParWilsonFermionModule
     end
 
     """
-    Multithreaded implementation of Dx!. Lexigraphically breaks the lattice into n_threads sublattices and
+    Evaluates Dx! using the half-spinor projection. Doesn't optimize the threading, and just operates pointwise on each
+    spacetime point on the lattice.
+    """
+    function Dx_halfspinor_threadall!(xout::ParWilsonFermion, U::Array{G, 1}, x::ParWilsonFermion, full_temps::Array{T, 1},
+                    temps::Array{T, 1}) where  {T <: FermionFields, G <: GaugeFields}
+        temp1 = temps[1]            # temps must be a matrix of Nd = 2 halfspinors.
+        temp2 = temps[2]
+        temp3 = temps[3]
+        temp4 = temps[4]
+
+        full_temp1 = full_temps[1]
+        full_temp2 = full_temps[2]
+        temp = full_temps[3]
+
+        clear!(temp)
+        set_wing_fermi_correct!(x)
+        # lck = SpinLock()
+        # lck = ReentrantLock()
+
+        # Split lattice into pieces to run on
+        nthr = Threads.nthreads()
+
+        # TODO debug serial version. It's probably something in fermion_shift_pt!. Maybe write a Dx_pt!() function to debug
+        # TODO split into blocks and have each block use proj_halfspinor_rg! and the other rg! operations to speed it up
+        Nt = x.NT; Nz = x.NZ; Ny = x.NY; Nx = x.NX#; Nc = x.NC
+        # @threads for it = 1:Nt
+        for it = 1:Nt
+            # println(it)
+            for iz = 1:Nz
+                for iy = 1:Ny
+                    # println(iy)
+                    for ix = 1:Nx
+                        coords = @SVector [ix, iy, iz, it]          # should be unique to each thread, so can put on stack
+                        # may want to explicitly give each thread the lattice points to work on
+                        for ν=1:4                   # Workflow: project, shift, recon
+                            proj_halfspinor_pt!(temp1, x, coords, ν, false)
+                            fermion_shift_pt!(temp3, U, coords, ν, temp1)
+                            recon_halfspinor_pt!(full_temp1, temp3, coords, ν, false)
+
+                            proj_halfspinor_pt!(temp2, x, coords, ν, true)
+                            fermion_shift_pt!(temp4, U, coords, -ν, temp2)
+                            recon_halfspinor_pt!(full_temp2, temp4, coords, ν, true)
+
+                            # Also try a reentrant lock, and no lock. Might not need to lock because each part is adding it at a different point.
+                            # lock(lck)
+                            add_pt!(temp, 0.5, full_temp1, 0.5, full_temp2, coords)
+                            # unlock(lck)
+                        end
+                    end
+                end
+            end
+        end
+
+        clear!(xout)
+        add!(xout, 1/(2*x.hop), x, -1, temp)
+        return
+    end
+
+    """
+    Lexigraphically breaks the lattice into n_threads sublattices and
     calls Dx_halfspinor! on each one.
     """
-    function Dx!(xout::ParWilsonFermion, U::Array{G,1}, x::ParWilsonFermion, temps::Array{T,1}) where  {T <: FermionFields, G <: GaugeFields}
-        temp = temps[4]
-        temp1 = temps[1]
+    function Dx_threads_dirac!(xout::ParWilsonFermion, U::Array{G, 1}, x::ParWilsonFermion, full_temps::Array{T, 1},
+                    temps::Array{T, 1}) where  {T <: FermionFields, G <: GaugeFields}
+        nthreads = Threads.nthreads()
+        temp1 = temps[1]            # temps must be a matrix of Nd = 2 halfspinors.
         temp2 = temps[2]
+        temp3 = temps[3]
+        temp4 = temps[4]
+
+        full_temp1 = full_temps[1]
+        full_temp2 = full_temps[2]
+        temp = full_temps[3]
+
+        clear!(temp)
+        set_wing_fermi_correct!(x)
+
+        # Could multithread this. Need more containers though
+
+
+        for ν=1:4                   # Workflow: project, shift, recon
+            proj_halfspinor!(temp1, x, ν, false)
+            fermion_shift!(temp3, U, ν, temp1)
+            recon_halfspinor!(full_temp1, temp3, ν, false)
+
+            proj_halfspinor!(temp2, x, ν, true)
+            fermion_shift!(temp4, U, -ν, temp2)
+            recon_halfspinor!(full_temp2, temp4, ν, true)
+
+            add!(temp, 0.5, full_temp1, 0.5, full_temp2)
+        end
+
+        clear!(xout)
+        add!(xout, 1/(2*x.hop), x, -1, temp)
+        return
+    end
+
+
+    """
+    Splits x into prod geom different container fermion fields. Each container in xtemps should be of size
+    length(x) / nsplit.
+
+    Parameters
+    ----------
+    xtemps::Array{T, 1}
+        Temporary x to split into. Size of x should be prod geom.
+    x::ParWilsonFermion
+        Fermion to split.
+    geom::Array{Integer, 1}
+        4D array with relative geometry to split.
+    """
+    function split_x_geom!(xtemps::Array{ParWilsonFermion, 1}, x::ParWilsonFermion, geom::Array{Integer, 1})
+        gx = geom[1]; gy = geom[2]; gz = geom[3]; gt = geom[4]
+        Nx = x.NX; Ny = x.NY; Nz = x.NZ; Nt = x.NT; Nd = x.ND; Nc = x.NC
+        Nblockx = Nx / gx; Nblocky = Ny / gy; Nblockz = Nz / gz; Nblockt = Nt / gt;
+        n_blocks = gx * gy * gz * gt
+
+        blk_idx = 1
+        for blkx = 1 : gx
+            for blky = 1 : gy
+                for blkz = 1 : gz
+                    for blkt = 1 : gt                   # iterate over blocks
+
+                        tmp = xtemps[blk_idx]
+                        for iα = 1 : Nd                 # populate tmp
+                            for xx = 1 : Nblockx
+                                iix = xx + Nblockx * (blkx - 1) + 1            # +1 is for padding
+                                for yy = 1 : Nblocky
+                                    iiy = yy + Nblocky * (blky - 1) + 1
+                                    for zz = 1 : Nblockz
+                                        iiz = zz + Nblockz * (blkz - 1) + 1
+                                        for tt = 1 : Nblockt
+                                            iit = tt + Nblockt * (blkt - 1) + 1
+                                            for k = 1 : Nc
+                                                 tmp.f[k, xx, yy, zz, tt, iα] = x.f[k, iix, iiy, iiz, iit, iα]
+                                                 # TODO have to give each fermion the correct bcs
+                                            end
+                                        end
+                                    end
+                                end
+                            end
+                        end
+                        blk_idx += 1
+                    end
+                end
+            end
+        end
+        return
+    end
+
+    """
+    Reconstructs a Fermion field from pieces split up according to geom.
+    """
+    function gather_x_geom!(xout::ParWilsonFermion, pieces::Array{ParWilsonFermion, 1}, geom::Array{Integer, 1})
+
+    end
+
+    """
+    Distributed implementation of Dx!. Lexigraphically breaks the lattice into n_threads sublattices and
+    calls Dx_halfspinor! on each one.
+    """
+    function Dx_block!(xout::ParWilsonFermion, U::Array{G, 1}, x::ParWilsonFermion, blk_out::Array{ParWilsonFermion, 1}, blks::Array{ParWilsonFermion, 1}, temps::Array{ParWilsonFermion, 1}, geom::Array{Integer, 1}) where  G <: GaugeFields
+
         n_threads = Threads.nthreads()
+        # actually get n_ranks from MPI
+        split_x_geom!(blks, x, geom)                # note that blks should have the same size as prod geom
+        @threads for th_idx = 1 : n_threads
+            Dx_halfspinor!(blk_out[th_idx], )
+        end
 
         clear!(temp)
         set_wing_fermi!(x)              # may want to move this out
@@ -962,6 +1236,298 @@ module ParWilsonFermionModule
             else
                 out.f[:, :, :, :, :, 3] .= x.f[:, :, :, :, :, 1]
                 out.f[:, :, :, :, :, 4] .= x.f[:, :, :, :, :, 2]
+            end
+        end
+        return
+    end
+
+    """
+    Projects a spinor x in the μ direction onto a halfspinor at a given range of spacetime points
+
+    Parameters
+    ----------
+    out::ParWilsonFermion
+        Output ParWilsonFermion field (ND = 2)
+    x::ParWilsonFermion
+        Wilson fermion field to project with ND = 4.
+    coords_min::SVector{4, Int64}
+        (Nx, Ny, Nt, Nz) coordinates to start projection at (should be unpadded).
+    coords_max::SVector{4, Int64}
+        (Nx, Ny, Nt, Nz) coordinates to start projection at (should be unpadded).
+    μ::Integer
+        Direction, should be in {1, 2, 3, 4}
+    pos::Bool
+        If positive or negative projector. True if positive.
+
+    Returns
+    -------
+    """
+    function proj_halfspinor_rg!(out::ParWilsonFermion, x::ParWilsonFermion, coords_min::SVector{4, Int64}, coords_max::SVector{4, Int64}, μ::Integer, plus::Bool)
+        xx_min = coords_min[1] + 1
+        yy_min = coords_min[2] + 1
+        zz_min = coords_min[3] + 1
+        tt_min = coords_min[4] + 1
+
+        xx_max = coords_max[1] + 1
+        yy_max = coords_max[2] + 1
+        zz_max = coords_max[3] + 1
+        tt_max = coords_max[4] + 1
+        Nc = x.NC
+
+        if plus
+            if μ == 1
+                out.f[:, xx_min:xx_max, yy_min:yy_max, zz_min:zz_max, tt_min:tt_max, 1] .= x.f[:, xx_min:xx_max, yy_min:yy_max, zz_min:zz_max, tt_min:tt_max, 1] .- im .* x.f[:, xx_min:xx_max, yy_min:yy_max, zz_min:zz_max, tt_min:tt_max, 4]          # h0
+                out.f[:, xx_min:xx_max, yy_min:yy_max, zz_min:zz_max, tt_min:tt_max, 2] .= x.f[:, xx_min:xx_max, yy_min:yy_max, zz_min:zz_max, tt_min:tt_max, 2] .- im .* x.f[:, xx_min:xx_max, yy_min:yy_max, zz_min:zz_max, tt_min:tt_max, 3]          # h1
+            elseif μ == 2
+                out.f[:, xx_min:xx_max, yy_min:yy_max, zz_min:zz_max, tt_min:tt_max, 1] .= x.f[:, xx_min:xx_max, yy_min:yy_max, zz_min:zz_max, tt_min:tt_max, 1] .- x.f[:, xx_min:xx_max, yy_min:yy_max, zz_min:zz_max, tt_min:tt_max, 4]
+                out.f[:, xx_min:xx_max, yy_min:yy_max, zz_min:zz_max, tt_min:tt_max, 2] .= x.f[:, xx_min:xx_max, yy_min:yy_max, zz_min:zz_max, tt_min:tt_max, 2] .+ x.f[:, xx_min:xx_max, yy_min:yy_max, zz_min:zz_max, tt_min:tt_max, 3]
+            elseif μ == 3
+                out.f[:, xx_min:xx_max, yy_min:yy_max, zz_min:zz_max, tt_min:tt_max, 1] .= x.f[:, xx_min:xx_max, yy_min:yy_max, zz_min:zz_max, tt_min:tt_max, 1] .- im .* x.f[:, xx_min:xx_max, yy_min:yy_max, zz_min:zz_max, tt_min:tt_max, 3]
+                out.f[:, xx_min:xx_max, yy_min:yy_max, zz_min:zz_max, tt_min:tt_max, 2] .= x.f[:, xx_min:xx_max, yy_min:yy_max, zz_min:zz_max, tt_min:tt_max, 2] .+ im .* x.f[:, xx_min:xx_max, yy_min:yy_max, zz_min:zz_max, tt_min:tt_max, 4]
+            else
+                out.f[:, xx_min:xx_max, yy_min:yy_max, zz_min:zz_max, tt_min:tt_max, 1] .= x.f[:, xx_min:xx_max, yy_min:yy_max, zz_min:zz_max, tt_min:tt_max, 1] .- x.f[:, xx_min:xx_max, yy_min:yy_max, zz_min:zz_max, tt_min:tt_max, 3]
+                out.f[:, xx_min:xx_max, yy_min:yy_max, zz_min:zz_max, tt_min:tt_max, 2] .= x.f[:, xx_min:xx_max, yy_min:yy_max, zz_min:zz_max, tt_min:tt_max, 2] .- x.f[:, xx_min:xx_max, yy_min:yy_max, zz_min:zz_max, tt_min:tt_max, 4]
+            end
+        else
+            if μ == 1
+                out.f[:, xx_min:xx_max, yy_min:yy_max, zz_min:zz_max, tt_min:tt_max, 1] .= x.f[:, xx_min:xx_max, yy_min:yy_max, zz_min:zz_max, tt_min:tt_max, 1] .+ im .* x.f[:, xx_min:xx_max, yy_min:yy_max, zz_min:zz_max, tt_min:tt_max, 4]          # h0
+                out.f[:, xx_min:xx_max, yy_min:yy_max, zz_min:zz_max, tt_min:tt_max, 2] .= x.f[:, xx_min:xx_max, yy_min:yy_max, zz_min:zz_max, tt_min:tt_max, 2] .+ im .* x.f[:, xx_min:xx_max, yy_min:yy_max, zz_min:zz_max, tt_min:tt_max, 3]          # h1
+            elseif μ == 2
+                out.f[:, xx_min:xx_max, yy_min:yy_max, zz_min:zz_max, tt_min:tt_max, 1] .= x.f[:, xx_min:xx_max, yy_min:yy_max, zz_min:zz_max, tt_min:tt_max, 1] .+ x.f[:, xx_min:xx_max, yy_min:yy_max, zz_min:zz_max, tt_min:tt_max, 4]
+                out.f[:, xx_min:xx_max, yy_min:yy_max, zz_min:zz_max, tt_min:tt_max, 2] .= x.f[:, xx_min:xx_max, yy_min:yy_max, zz_min:zz_max, tt_min:tt_max, 2] .- x.f[:, xx_min:xx_max, yy_min:yy_max, zz_min:zz_max, tt_min:tt_max, 3]
+            elseif μ == 3
+                out.f[:, xx_min:xx_max, yy_min:yy_max, zz_min:zz_max, tt_min:tt_max, 1] .= x.f[:, xx_min:xx_max, yy_min:yy_max, zz_min:zz_max, tt_min:tt_max, 1] .+ im .* x.f[:, xx_min:xx_max, yy_min:yy_max, zz_min:zz_max, tt_min:tt_max, 3]
+                out.f[:, xx_min:xx_max, yy_min:yy_max, zz_min:zz_max, tt_min:tt_max, 2] .= x.f[:, xx_min:xx_max, yy_min:yy_max, zz_min:zz_max, tt_min:tt_max, 2] .- im .* x.f[:, xx_min:xx_max, yy_min:yy_max, zz_min:zz_max, tt_min:tt_max, 4]
+            else
+                out.f[:, xx_min:xx_max, yy_min:yy_max, zz_min:zz_max, tt_min:tt_max, 1] .= x.f[:, xx_min:xx_max, yy_min:yy_max, zz_min:zz_max, tt_min:tt_max, 1] .+ x.f[:, xx_min:xx_max, yy_min:yy_max, zz_min:zz_max, tt_min:tt_max, 3]
+                out.f[:, xx_min:xx_max, yy_min:yy_max, zz_min:zz_max, tt_min:tt_max, 2] .= x.f[:, xx_min:xx_max, yy_min:yy_max, zz_min:zz_max, tt_min:tt_max, 2] .+ x.f[:, xx_min:xx_max, yy_min:yy_max, zz_min:zz_max, tt_min:tt_max, 4]
+            end
+        end
+        return
+    end
+
+    """
+    Reconstructs a projected spinor y to a full spinor x in the μ direction.
+
+    Parameters
+    ----------
+    out::ParWilsonFermion (ND = 4)
+        Reconstructed spinor (two spinor components instead of 4.)
+    y::ParWilsonFermion (ND = 2)
+        TwoSpinor fermion field to reconstruct.
+    coords::SVector{4, Int64}
+        (Nx, Ny, Nt, Nz) coordinates to recon at (should be unpadded).
+    μ::Integer
+        Direction, should be in {1, 2, 3, 4} or {-1, -2, -3, -4}
+
+    Returns
+    -------
+    ParWilsonFermion
+        Reconstructed spinor (two spinor components instead of 4.)
+    """
+    function recon_halfspinor_rg!(out::ParWilsonFermion, x::ParWilsonFermion, coords_min::SVector{4, Int64}, coords_max::SVector{4, Int64}, μ::Integer, plus::Bool)
+        xx_min = coords_min[1] + 1
+        yy_min = coords_min[2] + 1
+        zz_min = coords_min[3] + 1
+        tt_min = coords_min[4] + 1
+
+        xx_max = coords_max[1] + 1
+        yy_max = coords_max[2] + 1
+        zz_max = coords_max[3] + 1
+        tt_max = coords_max[4] + 1
+        Nc = x.NC
+
+        out.f[:, xx_min:xx_max, yy_min:yy_max, zz_min:zz_max, tt_min:tt_max, 1] .= x.f[:, xx_min:xx_max, yy_min:yy_max, zz_min:zz_max, tt_min:tt_max, 1]                            # h0
+        out.f[:, xx_min:xx_max, yy_min:yy_max, zz_min:zz_max, tt_min:tt_max, 2] .= x.f[:, xx_min:xx_max, yy_min:yy_max, zz_min:zz_max, tt_min:tt_max, 2]                            # h1
+        if plus
+            if μ == 1
+                out.f[:, xx_min:xx_max, yy_min:yy_max, zz_min:zz_max, tt_min:tt_max, 3] .= im .* x.f[:, xx_min:xx_max, yy_min:yy_max, zz_min:zz_max, tt_min:tt_max, 2]              # r2
+                out.f[:, xx_min:xx_max, yy_min:yy_max, zz_min:zz_max, tt_min:tt_max, 4] .= im .* x.f[:, xx_min:xx_max, yy_min:yy_max, zz_min:zz_max, tt_min:tt_max, 1]              # r3
+            elseif μ == 2
+                out.f[:, xx_min:xx_max, yy_min:yy_max, zz_min:zz_max, tt_min:tt_max, 3] .= x.f[:, xx_min:xx_max, yy_min:yy_max, zz_min:zz_max, tt_min:tt_max, 2]
+                out.f[:, xx_min:xx_max, yy_min:yy_max, zz_min:zz_max, tt_min:tt_max, 4] .= -x.f[:, xx_min:xx_max, yy_min:yy_max, zz_min:zz_max, tt_min:tt_max, 1]
+            elseif μ == 3
+                out.f[:, xx_min:xx_max, yy_min:yy_max, zz_min:zz_max, tt_min:tt_max, 3] .= im .* x.f[:, xx_min:xx_max, yy_min:yy_max, zz_min:zz_max, tt_min:tt_max, 1]
+                out.f[:, xx_min:xx_max, yy_min:yy_max, zz_min:zz_max, tt_min:tt_max, 4] .= -im .* x.f[:, xx_min:xx_max, yy_min:yy_max, zz_min:zz_max, tt_min:tt_max, 2]
+            else
+                out.f[:, xx_min:xx_max, yy_min:yy_max, zz_min:zz_max, tt_min:tt_max, 3] .= -x.f[:, xx_min:xx_max, yy_min:yy_max, zz_min:zz_max, tt_min:tt_max, 1]
+                out.f[:, xx_min:xx_max, yy_min:yy_max, zz_min:zz_max, tt_min:tt_max, 4] .= -x.f[:, xx_min:xx_max, yy_min:yy_max, zz_min:zz_max, tt_min:tt_max, 2]
+            end
+        else
+            if μ == 1
+                out.f[:, xx_min:xx_max, yy_min:yy_max, zz_min:zz_max, tt_min:tt_max, 3] .= -im .* x.f[:, xx_min:xx_max, yy_min:yy_max, zz_min:zz_max, tt_min:tt_max, 2]
+                out.f[:, xx_min:xx_max, yy_min:yy_max, zz_min:zz_max, tt_min:tt_max, 4] .= -im .* x.f[:, xx_min:xx_max, yy_min:yy_max, zz_min:zz_max, tt_min:tt_max, 1]
+            elseif μ == 2
+                out.f[:, xx_min:xx_max, yy_min:yy_max, zz_min:zz_max, tt_min:tt_max, 3] .= -x.f[:, xx_min:xx_max, yy_min:yy_max, zz_min:zz_max, tt_min:tt_max, 2]
+                out.f[:, xx_min:xx_max, yy_min:yy_max, zz_min:zz_max, tt_min:tt_max, 4] .= x.f[:, xx_min:xx_max, yy_min:yy_max, zz_min:zz_max, tt_min:tt_max, 1]
+            elseif μ == 3
+                out.f[:, xx_min:xx_max, yy_min:yy_max, zz_min:zz_max, tt_min:tt_max, 3] .= -im .* x.f[:, xx_min:xx_max, yy_min:yy_max, zz_min:zz_max, tt_min:tt_max, 1]
+                out.f[:, xx_min:xx_max, yy_min:yy_max, zz_min:zz_max, tt_min:tt_max, 4] .= im .* x.f[:, xx_min:xx_max, yy_min:yy_max, zz_min:zz_max, tt_min:tt_max, 2]
+            else
+                out.f[:, xx_min:xx_max, yy_min:yy_max, zz_min:zz_max, tt_min:tt_max, 3] .= x.f[:, xx_min:xx_max, yy_min:yy_max, zz_min:zz_max, tt_min:tt_max, 1]
+                out.f[:, xx_min:xx_max, yy_min:yy_max, zz_min:zz_max, tt_min:tt_max, 4] .= x.f[:, xx_min:xx_max, yy_min:yy_max, zz_min:zz_max, tt_min:tt_max, 2]
+            end
+        end
+        return
+    end
+
+    """
+    Projects a spinor x in the μ direction onto a halfspinor at a given point.
+
+    Parameters
+    ----------
+    out::ParWilsonFermion
+        Output ParWilsonFermion field (ND = 2)
+    x::ParWilsonFermion
+        Wilson fermion field to project with ND = 4.
+    coords::SVector{4, Int64}
+        (Nx, Ny, Nt, Nz) coordinates to project at (should be unpadded).
+    μ::Integer
+        Direction, should be in {1, 2, 3, 4}
+    pos::Bool
+        If positive or negative projector. True if positive.
+
+    Returns
+    -------
+    """
+    function proj_halfspinor_pt!(out::ParWilsonFermion, x::ParWilsonFermion, coords::SVector{4, Int64}, μ::Integer, plus::Bool)
+        # k = coords[1]
+        # xx = coords[2] + 1
+        # yy = coords[3] + 1
+        # zz = coords[4] + 1
+        # tt = coords[5] + 1
+        xx = coords[1] + 1
+        yy = coords[2] + 1
+        zz = coords[3] + 1
+        tt = coords[4] + 1
+        Nc = x.NC
+
+        if plus
+            if μ == 1
+                @simd for k = 1:Nc
+                    out.f[k, xx, yy, zz, tt, 1] = x.f[k, xx, yy, zz, tt, 1] - im * x.f[k, xx, yy, zz, tt, 4]          # h0
+                    out.f[k, xx, yy, zz, tt, 2] = x.f[k, xx, yy, zz, tt, 2] - im * x.f[k, xx, yy, zz, tt, 3]          # h1
+                end
+            elseif μ == 2
+                @simd for k = 1:Nc
+                    out.f[k, xx, yy, zz, tt, 1] = x.f[k, xx, yy, zz, tt, 1] - x.f[k, xx, yy, zz, tt, 4]
+                    out.f[k, xx, yy, zz, tt, 2] = x.f[k, xx, yy, zz, tt, 2] + x.f[k, xx, yy, zz, tt, 3]
+                end
+            elseif μ == 3
+                @simd for k = 1:Nc
+                    out.f[k, xx, yy, zz, tt, 1] = x.f[k, xx, yy, zz, tt, 1] - im * x.f[k, xx, yy, zz, tt, 3]
+                    out.f[k, xx, yy, zz, tt, 2] = x.f[k, xx, yy, zz, tt, 2] + im * x.f[k, xx, yy, zz, tt, 4]
+                end
+            else
+                @simd for k = 1:Nc
+                    out.f[k, xx, yy, zz, tt, 1] = x.f[k, xx, yy, zz, tt, 1] - x.f[k, xx, yy, zz, tt, 3]
+                    out.f[k, xx, yy, zz, tt, 2] = x.f[k, xx, yy, zz, tt, 2] - x.f[k, xx, yy, zz, tt, 4]
+                end
+            end
+        else
+            if μ == 1
+                @simd for k = 1:Nc
+                    out.f[k, xx, yy, zz, tt, 1] = x.f[k, xx, yy, zz, tt, 1] + im * x.f[k, xx, yy, zz, tt, 4]          # h0
+                    out.f[k, xx, yy, zz, tt, 2] = x.f[k, xx, yy, zz, tt, 2] + im * x.f[k, xx, yy, zz, tt, 3]          # h1
+                end
+            elseif μ == 2
+                @simd for k = 1:Nc
+                    out.f[k, xx, yy, zz, tt, 1] = x.f[k, xx, yy, zz, tt, 1] + x.f[k, xx, yy, zz, tt, 4]
+                    out.f[k, xx, yy, zz, tt, 2] = x.f[k, xx, yy, zz, tt, 2] - x.f[k, xx, yy, zz, tt, 3]
+                end
+            elseif μ == 3
+                @simd for k = 1:Nc
+                    out.f[k, xx, yy, zz, tt, 1] = x.f[k, xx, yy, zz, tt, 1] + im * x.f[k, xx, yy, zz, tt, 3]
+                    out.f[k, xx, yy, zz, tt, 2] = x.f[k, xx, yy, zz, tt, 2] - im * x.f[k, xx, yy, zz, tt, 4]
+                end
+            else
+                @simd for k = 1:Nc
+                    out.f[k, xx, yy, zz, tt, 1] = x.f[k, xx, yy, zz, tt, 1] + x.f[k, xx, yy, zz, tt, 3]
+                    out.f[k, xx, yy, zz, tt, 2] = x.f[k, xx, yy, zz, tt, 2] + x.f[k, xx, yy, zz, tt, 4]
+                end
+            end
+        end
+        return
+    end
+
+    """
+    Reconstructs a projected spinor y to a full spinor x in the μ direction.
+
+    Parameters
+    ----------
+    out::ParWilsonFermion (ND = 4)
+        Reconstructed spinor (two spinor components instead of 4.)
+    y::ParWilsonFermion (ND = 2)
+        TwoSpinor fermion field to reconstruct.
+    coords::SVector{4, Int64}
+        (Nx, Ny, Nt, Nz) coordinates to recon at (should be unpadded).
+    μ::Integer
+        Direction, should be in {1, 2, 3, 4} or {-1, -2, -3, -4}
+
+    Returns
+    -------
+    ParWilsonFermion
+        Reconstructed spinor (two spinor components instead of 4.)
+    """
+    function recon_halfspinor_pt!(out::ParWilsonFermion, x::ParWilsonFermion, coords::SVector{4, Int64}, μ::Integer, plus::Bool)
+        # k = coords[1]
+        # xx = coords[2] + 1
+        # yy = coords[3] + 1
+        # zz = coords[4] + 1
+        # tt = coords[5] + 1
+        xx = coords[1] + 1
+        yy = coords[2] + 1
+        zz = coords[3] + 1
+        tt = coords[4] + 1
+        Nc = x.NC
+
+        @simd for k = 1:Nc
+            out.f[k, xx, yy, zz, tt, 1] = x.f[k, xx, yy, zz, tt, 1]                            # h0
+            out.f[k, xx, yy, zz, tt, 2] = x.f[k, xx, yy, zz, tt, 2]                            # h1
+        end
+        if plus
+            if μ == 1
+                @simd for k = 1:Nc
+                    out.f[k, xx, yy, zz, tt, 3] = im * x.f[k, xx, yy, zz, tt, 2]              # r2
+                    out.f[k, xx, yy, zz, tt, 4] = im * x.f[k, xx, yy, zz, tt, 1]              # r3
+                end
+            elseif μ == 2
+                @simd for k = 1:Nc
+                    out.f[k, xx, yy, zz, tt, 3] = x.f[k, xx, yy, zz, tt, 2]
+                    out.f[k, xx, yy, zz, tt, 4] = -x.f[k, xx, yy, zz, tt, 1]
+                end
+            elseif μ == 3
+                @simd for k = 1:Nc
+                    out.f[k, xx, yy, zz, tt, 3] = im * x.f[k, xx, yy, zz, tt, 1]
+                    out.f[k, xx, yy, zz, tt, 4] = -im * x.f[k, xx, yy, zz, tt, 2]
+                end
+            else
+                @simd for k = 1:Nc
+                    out.f[k, xx, yy, zz, tt, 3] = -x.f[k, xx, yy, zz, tt, 1]
+                    out.f[k, xx, yy, zz, tt, 4] = -x.f[k, xx, yy, zz, tt, 2]
+                end
+            end
+        else
+            if μ == 1
+                @simd for k = 1:Nc
+                    out.f[k, xx, yy, zz, tt, 3] = -im * x.f[k, xx, yy, zz, tt, 2]
+                    out.f[k, xx, yy, zz, tt, 4] = -im * x.f[k, xx, yy, zz, tt, 1]
+                end
+            elseif μ == 2
+                @simd for k = 1:Nc
+                    out.f[k, xx, yy, zz, tt, 3] = -x.f[k, xx, yy, zz, tt, 2]
+                    out.f[k, xx, yy, zz, tt, 4] = x.f[k, xx, yy, zz, tt, 1]
+                end
+            elseif μ == 3
+                @simd for k = 1:Nc
+                    out.f[k, xx, yy, zz, tt, 3] = -im * x.f[k, xx, yy, zz, tt, 1]
+                    out.f[k, xx, yy, zz, tt, 4] = im * x.f[k, xx, yy, zz, tt, 2]
+                end
+            else
+                @simd for k = 1:Nc
+                    out.f[k, xx, yy, zz, tt, 3] = x.f[k, xx, yy, zz, tt, 1]
+                    out.f[k, xx, yy, zz, tt, 4] = x.f[k, xx, yy, zz, tt, 2]
+                end
             end
         end
         return
