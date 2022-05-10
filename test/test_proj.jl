@@ -93,24 +93,24 @@ println(par_ferm.f[1, Nx + 1, Ny + 1, Nz + 1, Nt + 1, :])
 ############################# Test single projection ###########################
 ################################################################################
 
-#=
 μ = rand(1:4)
 println("Projection for μ = $(μ)")
 tmp1_ser = deepcopy(ser_ferm)
 ser_out = WilsonFermion(Nc, Nx, Ny, Nz, Nt, ferm_param, bc)
 mul_dirac!(ser_out, ser_ferm.rminusγ[:, :, μ], tmp1_ser)
-t_proj_ser = @belapsed mul_dirac!($(tmp1_ser), ser_ferm.rminusγ[:, :, $(μ)], $(tmp1_ser))
+# Standard projection
+t_proj_ser = @belapsed mul_dirac!(tmp1_ser, ser_ferm.rminusγ[:, :, μ], tmp1_ser)
 
 par_out = deepcopy(par_ferm)
 tmp1_par = deepcopy(par_ferm)
 tmp_halfspinor = ParWilsonFermion(Nc, Nx, Ny, Nz, Nt, 2, ferm_param, bc)
 project!(par_out, par_ferm, tmp_halfspinor, μ, false)
-t_proj_par = @belapsed project!($(tmp1_par), $(par_ferm), $(tmp_halfspinor), $(μ), false)
+# Halfspinor projection
+t_proj_par = @belapsed project!(tmp1_par, par_ferm, tmp_halfspinor, μ, false)
 
 println("Difference for P^(-$(μ)) = $(maximum(abs.(ser_out.f - par_out.f)))")
 println("Standard projection time: $(t_proj_ser)")
 println("Halfspinor projection time: $(t_proj_par)")
-=#
 
 ################################################################################
 ############################ Test projection + shift ###########################
@@ -157,6 +157,7 @@ println("Difference for shift + project = $(maximum(abs.(shift_proj_ser.f - shif
 ############################ Test projection at point ##########################
 ################################################################################
 
+#=
 μ = rand(1:4)
 println("Testing projection at point vs broadcasting for μ = $(μ).")
 
@@ -206,6 +207,7 @@ println("Difference for P^(-$(μ)) = $(maximum(abs.(par_all_out.f - par_pt_out.f
 println("Broadcast projection: $(t_proj_all)")
 println("Point-by-point projection time: $(t_proj_pt)")
 println("Point-by-point projection (with threads): $(t_proj_pt_threads)")
+=#
 
 ################################################################################
 ################################## Save data ###################################

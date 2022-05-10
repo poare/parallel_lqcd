@@ -3,7 +3,8 @@ This script will test the parallelization of the Dirac kernel with multithreadin
 It will implement two things in addition to the serial implementation in LatticeQCD.jl:
 add a spinor projection / reconstruction step, and multithread the computation.
 =#
-
+using Random
+Random.seed!(10)
 using BenchmarkTools
 using LatticeQCD.Actions:Actions
 using LatticeQCD.WilsonFermion_module:WilsonFermion,Dx!
@@ -20,8 +21,8 @@ mq = -0.2450
 κ = 1 / (2 * mq + 8)                            # hopping parameter
 ferm_param = Actions.FermiActionParam_Wilson(κ, 1, 1e-16, 3000)
 Nc = 3
-Nx = 8; Ny = 8; Nz = 8; Nt = 8
-# Nx = 16; Ny = 16; Nz = 16; Nt = 48
+# Nx = 8; Ny = 8; Nz = 8; Nt = 8
+Nx = 16; Ny = 16; Nz = 16; Nt = 48
 bc = ones(Int8, 4)
 
 # initialize fermions
@@ -37,13 +38,10 @@ for μ = 1:4
     U[μ] = RandomGauges(Nc, Nx, Ny, Nz, Nt, NDW)
 end
 
-################################################################################
-################################ Dx! halfspinor ################################
-################################################################################
-
 ser_ferm_out = WilsonFermion(Nc, Nx, Ny, Nz, Nt, ferm_param, bc)
 par_ferm_out = ParWilsonFermion(ser_ferm_out)
 par_ferm_halfspinor_out = ParWilsonFermion(ser_ferm_out)
+par_ferm_multithread_out = ParWilsonFermion(Nc, Nx, Ny, Nz, Nt, 4, ferm_param, bc)
 temp_ser = [
     WilsonFermion(Nc, Nx, Ny, Nz, Nt, ferm_param, bc),
     WilsonFermion(Nc, Nx, Ny, Nz, Nt, ferm_param, bc),
@@ -64,48 +62,16 @@ half_temps = [
     ParWilsonFermion(Nc, Nx, Ny, Nz, Nt, 2, ferm_param, bc)
 ]
 
-Dx_serial!(par_ferm_out, U, par_ferm, temp_par)
-Dx_halfspinor!(par_ferm_halfspinor_out, U, par_ferm, full_temps, half_temps)
-#=
-t_ser = @belapsed Dx_serial!(par_ferm_out, U, par_ferm, temp_par)
-t_half = @belapsed Dx_halfspinor!(par_ferm_halfspinor_out, U, par_ferm, full_temps, half_temps)
-
-# compare timings and output fermions
-println("Standard Dx! time: $(t_ser)")
-println("Halfspinor Dx! time: $(t_half)")
-=#
-println("Maximum deviation between regular and halfspinor Dx! output is $(maximum(abs.(par_ferm_out.f - par_ferm_halfspinor_out.f)))")
-
 ################################################################################
 ########################### Multithreaded halfspinor ###########################
 ################################################################################
 
-par_ferm_multithread_out = ParWilsonFermion(Nc, Nx, Ny, Nz, Nt, 4, ferm_param, bc)
-full_temps = [
-    ParWilsonFermion(Nc, Nx, Ny, Nz, Nt, 4, ferm_param, bc),
-    ParWilsonFermion(Nc, Nx, Ny, Nz, Nt, 4, ferm_param, bc),
-    ParWilsonFermion(Nc, Nx, Ny, Nz, Nt, 4, ferm_param, bc)
-]
-half_temps = [
-    ParWilsonFermion(Nc, Nx, Ny, Nz, Nt, 2, ferm_param, bc),
-    ParWilsonFermion(Nc, Nx, Ny, Nz, Nt, 2, ferm_param, bc),
-    ParWilsonFermion(Nc, Nx, Ny, Nz, Nt, 2, ferm_param, bc),
-    ParWilsonFermion(Nc, Nx, Ny, Nz, Nt, 2, ferm_param, bc)
-]
-
-# TODO do a test, probably just do the + and - parts separately to see if we can find the problem
-# t_half_par = @belapsed Dx_halfspinor_threadall!(par_ferm_multithread_out, U, par_ferm, full_temps, half_temps)
-Dx_halfspinor_threadall!(par_ferm_multithread_out, U, par_ferm, full_temps, half_temps)
-
-println(par_ferm_out.f[1, 2, 2, 2, 2, :])
-println(par_ferm_multithread_out.f[1, 2, 2, 2, 2, :])
-println(par_ferm_out.f[1, 4, 4, 4, 4, :])
-println(par_ferm_multithread_out.f[1, 4, 4, 4, 4, :])
-println(par_ferm_out.f[1, 1, 2, 2, 2, :])
-println(par_ferm_multithread_out.f[1, 1, 2, 2, 2, :])
-
-# println("Multithreaded Dx! with halfspinor projection time: $(t_half_par)")
-println("Maximum deviation between regular and multithreaded Dx! output is $(maximum(abs.(par_ferm_out.f - par_ferm_multithread_out.f)))")
+t_ser = @belapsed Dx_serial!(par_ferm_out, U, par_ferm, temp_par)
+t_half = @belapsed Dx_halfspinor!(par_ferm_halfspinor_out, U, par_ferm, full_temps, half_temps)
+t_thread = @belapsed Dx_halfspinor_threadall!(par_ferm_multithread_out, U, par_ferm, full_temps, half_temps)
+println("Standard Dx! time: $(t_ser)")
+println("Halfspinor Dx! time: $(t_half)")
+println("Multithreaded Dx! time: $(t_thread)")
 
 ################################################################################
 ################################## Save data ###################################
